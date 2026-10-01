@@ -42,7 +42,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* CHANGE VALUES FOR THEME — Heirloom: premium, dark-first, bold emerald + violet */
+/* CHANGE VALUES FOR THEME: Heirloom, light-first, emerald accent, violet support */
 :root {
   --radius: 0.75rem;
   --background: oklch(0.988 0.003 250);
@@ -132,7 +132,7 @@
   --sidebar-border: oklch(0.94 0.02 260 / 11%);
   --sidebar-ring: oklch(0.79 0.17 161.8 / 60%);
 
-  /* Heirloom extras (dark — the identity) */
+  /* Heirloom extras (dark) */
   --heirloom-accent: oklch(0.8 0.165 162);
   --heirloom-accent-strong: oklch(0.88 0.14 163);
   --heirloom-accent-soft: oklch(0.8 0.165 162 / 0.14);
@@ -188,25 +188,6 @@
       linear-gradient(to bottom, var(--heirloom-grid-strong) 1px, transparent 1px);
     background-size: 44px 44px;
   }
-  .hl-glow {
-    background: radial-gradient(closest-side, var(--heirloom-glow), transparent 72%);
-  }
-  .hl-glow-duo {
-    background:
-      radial-gradient(42% 55% at 30% 40%, var(--heirloom-glow), transparent 70%),
-      radial-gradient(40% 50% at 72% 60%, var(--heirloom-glow-2, transparent), transparent 72%);
-  }
-  .hl-gradient-text {
-    background: linear-gradient(
-      92deg,
-      var(--heirloom-accent) 0%,
-      var(--heirloom-cyan) 48%,
-      var(--heirloom-violet) 100%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
   .hl-hero-fade {
     background: linear-gradient(to bottom, var(--heirloom-hero-veil), var(--heirloom-hero-veil-2));
   }
@@ -237,25 +218,7 @@
   }
 }
 
-@keyframes hl-scan {
-  0% {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  12% {
-    opacity: 1;
-  }
-  88% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-}
-.hl-scanline {
-  animation: hl-scan 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
+
 
 @keyframes hl-blink {
   0%,

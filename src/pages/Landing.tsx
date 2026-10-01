@@ -66,10 +66,6 @@ export default function Landing() {
         {/* ── Hero ───────────────────────────────────────────────────────── */}
         <section className="relative overflow-hidden">
           <div className="hl-grid-strong absolute inset-0" />
-          <div
-            className="hl-glow-duo absolute -top-32 left-1/2 h-[440px] w-[820px] -translate-x-1/2"
-            aria-hidden="true"
-          />
           <div className="hl-hero-fade absolute inset-0" />
           <div className="relative mx-auto grid w-full max-w-6xl gap-12 px-4 pb-20 pt-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:pb-24 lg:pt-24">
             <div>
@@ -111,8 +107,8 @@ export default function Landing() {
               >
                 Nobody hands you the manual.
                 <br />
-                <span className="hl-gradient-text">Heirloom writes it</span> —
-                and proves it.
+                <span className="text-primary">Heirloom writes it</span>, and
+                proves it.
               </motion.h1>
 
               <motion.p
@@ -123,7 +119,7 @@ export default function Landing() {
               >
                 Point Heirloom at a codebase nobody understands. It reconstructs
                 the environment, writes the missing tests, containerises the
-                app, brings it up on staging — then ships a handover pack where
+                app, brings it up on staging, then ships a handover pack where
                 <span className="text-foreground font-medium">
                   {" "}
                   every claim links to a command the agent actually ran
@@ -137,9 +133,11 @@ export default function Landing() {
                 transition={{ duration: 0.55, delay: 0.18 }}
                 className="mt-8 flex flex-wrap items-center gap-3"
               >
-                <Button size="lg" className="gap-2 px-5" onClick={() => (window.location.href = "/dashboard")}>
-                  Start a takeover
-                  <ArrowRight className="size-4" />
+                <Button size="lg" className="gap-2 px-5" asChild>
+                  <a href="/dashboard">
+                    Start a takeover
+                    <ArrowRight className="size-4" />
+                  </a>
                 </Button>
                 <Button size="lg" variant="outline" className="gap-2 px-5" asChild>
                   <a href="#proof">
@@ -168,7 +166,6 @@ export default function Landing() {
               className="relative"
             >
               <div className="hl-card relative overflow-hidden">
-                <div className="hl-scanline pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-transparent via-[color-mix(in_oklab,var(--heirloom-accent)_14%,transparent)] to-transparent" />
                 <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <GitBranch className="size-4 text-muted-foreground" />
@@ -206,10 +203,6 @@ export default function Landing() {
                   </div>
                 </div>
               </div>
-              <div
-                className="hl-glow absolute -bottom-16 -right-10 -z-10 h-56 w-72"
-                aria-hidden="true"
-              />
             </motion.div>
           </div>
         </section>
@@ -217,7 +210,7 @@ export default function Landing() {
         {/* ── Strip ──────────────────────────────────────────────────────── */}
         <section className="border-y border-border/70 bg-muted/40">
           <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-4 py-4 text-center text-xs font-medium tracking-wide text-muted-foreground sm:px-6">
-            <span>Nebius Token Factory — OpenAI-compatible inference</span>
+            <span>Nebius Token Factory: OpenAI-compatible inference</span>
             <span className="hidden sm:inline" aria-hidden="true">·</span>
             <span>NVIDIA Nemotron for planning &amp; fast loop calls</span>
             <span className="hidden sm:inline" aria-hidden="true">·</span>
@@ -259,7 +252,7 @@ export default function Landing() {
                 icon: Boxes,
                 step: "02",
                 title: "Reconstruct the environment",
-                body: "Trace every process.env read, infer defaults, flag what only an operator can supply. First boot attempt is expected to fail — that failure is evidence.",
+                body: "Trace every process.env read, infer defaults, flag what only an operator can supply. The first boot attempt is expected to fail. That failure is evidence.",
               },
               {
                 icon: Gauge,
@@ -271,7 +264,7 @@ export default function Landing() {
                 icon: FileCheck2,
                 step: "04",
                 title: "Verify & hand over",
-                body: "Probe the live health endpoint until it is boring. Then assemble the runbook, architecture map and risk register — each claim cross-linked to proof.",
+                body: "Probe the live health endpoint until it is boring. Then assemble the runbook, architecture map and risk register, each claim cross-linked to proof.",
               },
             ].map((item) => (
               <motion.div key={item.step} {...fadeUp} className="hl-card hl-card-hover p-6">
@@ -307,9 +300,9 @@ export default function Landing() {
               </p>
               <ul className="mt-6 space-y-3 text-sm leading-6">
                 {[
-                  "Verified — the agent ran the proof itself and it holds.",
-                  "Unverified — the pack says so out loud instead of guessing.",
-                  "Contradicted — a hypothesis the sandbox disproved, kept on the record.",
+                  "Verified: the agent ran the proof itself, and it holds.",
+                  "Unverified: the pack says so out loud instead of guessing.",
+                  "Contradicted: a hypothesis the sandbox disproved, kept on the record.",
                 ].map((line) => (
                   <li key={line} className="flex items-start gap-3">
                     <Check
@@ -321,8 +314,8 @@ export default function Landing() {
                 ))}
               </ul>
               <p className="mt-6 text-sm leading-6 text-muted-foreground">
-                When the agent exhausts its fix cycles, it stops and says so —
-                the risk register tells the next engineer exactly where to pick
+                When the agent exhausts its fix cycles, it stops and says so. The
+                risk register tells the next engineer exactly where to pick
                 up.
               </p>
             </motion.div>
@@ -420,7 +413,7 @@ export default function Landing() {
               {
                 icon: TriangleAlert,
                 title: "Risk register",
-                body: "Ranked defects and unknowns — each with the repro command and the exact failed output that proved it.",
+                body: "Ranked defects and unknowns, each with the repro command and the exact failed output that proved it.",
               },
               {
                 icon: ShieldCheck,
@@ -469,8 +462,8 @@ export default function Landing() {
             <motion.p {...fadeUp} className="mt-6 text-xs leading-6 text-muted-foreground">
               Ten inherited MERN and Express repositories, one run each, fixed
               model split. Full transcripts and per-repo results are published
-              in the public repository, including the two runs that failed —
-              with the evidence that explains why.
+              in the public repository, including the two failed runs, with the
+              evidence that explains why.
             </motion.p>
           </div>
         </section>
@@ -493,7 +486,7 @@ export default function Landing() {
               {
                 name: "NVIDIA Nemotron",
                 role: "Ultra plans, Nano executes",
-                body: "nemotron-3-ultra handles repo survey, failure diagnosis and the handover narrative. nemotron-3-nano drives the fast loop — boot retries, test runs, probes. The right model for each job keeps cost and latency low.",
+                body: "nemotron-3-ultra handles repo survey, failure diagnosis and the handover narrative. nemotron-3-nano drives the fast loop: boot retries, test runs, health probes. The right model for each job keeps cost and latency low.",
               },
               {
                 name: "Tavily",
@@ -534,7 +527,7 @@ export default function Landing() {
                 {[
                   {
                     title: "Technological implementation",
-                    body: "Two-tier Nemotron loop, sandboxed execution, scheduled state machine — not a prompt wrapper.",
+                    body: "Two-tier Nemotron loop, sandboxed execution, scheduled state machine, not a prompt wrapper.",
                   },
                   {
                     title: "Design",
@@ -542,7 +535,7 @@ export default function Landing() {
                   },
                   {
                     title: "Potential impact",
-                    body: "Every team that inherits a codebase — most of them — gets its week of archaeology back.",
+                    body: "Most teams inherit a codebase eventually. Heirloom gives them their week of archaeology back.",
                   },
                   {
                     title: "Quality of the idea",
@@ -565,23 +558,21 @@ export default function Landing() {
             {...fadeUp}
             className="hl-grid relative mx-auto w-full max-w-6xl overflow-hidden rounded-[calc(var(--radius)+10px)] border border-border bg-card px-6 py-16 text-center sm:px-12"
           >
-            <div
-              className="hl-glow absolute -top-24 left-1/2 h-64 w-[520px] -translate-x-1/2"
-              aria-hidden="true"
-            />
             <div className="relative">
               <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-                Hand over the mess. Get the manual — with receipts.
+                Hand over the mess. Get back the manual, with receipts.
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
                 Pick a playbook from the catalog, hand over the repo, and watch
-                the loop work — intake, boot attempts, fix cycles, the health
+                the loop work: intake, boot attempts, fix cycles, the health
                 check and the pack.
               </p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                <Button size="lg" className="gap-2 px-5" onClick={() => (window.location.href = "/dashboard")}>
-                  Start a takeover
-                  <ArrowRight className="size-4" />
+                <Button size="lg" className="gap-2 px-5" asChild>
+                  <a href="/dashboard">
+                    Start a takeover
+                    <ArrowRight className="size-4" />
+                  </a>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
                   <a href="/catalog">Browse the playbooks</a>

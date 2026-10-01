@@ -152,7 +152,7 @@ export default function Catalog() {
     if (!key) return;
     const pb = PLAYBOOKS.find((p) => p.key === key);
     if (pb) {
-      toast.info(`Noted — we'll tune the loop for “${pb.name}” and email you when it lands.`);
+      toast.info(`Noted. We'll tune the loop for “${pb.name}” and email you when it launches.`);
     }
   }, [searchParams]);
 
@@ -178,7 +178,6 @@ export default function Catalog() {
       <main className="flex-1">
         <section className="relative overflow-hidden border-b border-border/70">
           <div className="hl-grid absolute inset-0" />
-          <div className="hl-glow-duo absolute inset-0" aria-hidden="true" />
           <div className="hl-hero-fade absolute inset-0" />
           <div className="relative mx-auto w-full max-w-6xl px-4 pb-14 pt-14 sm:px-6 lg:pt-16">
             <p
@@ -192,7 +191,7 @@ export default function Catalog() {
             </h1>
             <p className="mt-4 max-w-2xl text-pretty leading-7 text-muted-foreground">
               Every playbook tunes the agent loop for one class of inherited
-              codebase — what a boot failure looks like, which fixes are on the
+              codebase: what a boot failure looks like, which fixes are on the
               table, and when to stop honestly. Four run end-to-end today; the
               rest are on the roadmap.
             </p>
@@ -277,8 +276,8 @@ export default function Catalog() {
                 </h2>
                 <p className="mt-1.5 max-w-xl text-sm leading-6 text-muted-foreground">
                   The four playable shapes cover the most common handover
-                  cases. Join the waitlist for a shape and we&apos;ll tune the
-                  loop for it — bring the repo, the loop learns the rest.
+                  cases. Join the waitlist for a shape and we&apos;ll tune
+                  the loop for it. Bring the repo; the loop learns the rest.
                 </p>
               </div>
               <Button variant="outline" className="shrink-0" asChild>

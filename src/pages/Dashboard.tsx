@@ -69,7 +69,7 @@ function statusStyle(status: RunStatus): { label: string; css: React.CSSProperti
       };
     case "partial":
       return {
-        label: "partial — stopped honestly",
+        label: "stopped honestly",
         css: { background: "var(--heirloom-amber-soft)", color: "var(--heirloom-amber)" },
       };
     case "failed":
@@ -252,22 +252,22 @@ export default function Dashboard() {
           <StatCard
             icon={FlaskConical}
             label="Takeovers"
-            value={stats ? String(stats.runs) : "—"}
+            value={stats ? String(stats.runs) : "…"}
           />
           <StatCard
             icon={ShieldCheck}
             label="Live staging URLs"
-            value={stats ? String(stats.live) : "—"}
+            value={stats ? String(stats.live) : "…"}
           />
           <StatCard
             icon={FileCheck2}
             label="Claims verified"
-            value={stats ? String(stats.verifiedClaims) : "—"}
+            value={stats ? String(stats.verifiedClaims) : "…"}
           />
           <StatCard
             icon={Layers}
             label="Credits burned"
-            value={stats ? `$${stats.credits.toFixed(2)}` : "—"}
+            value={stats ? `$${stats.credits.toFixed(2)}` : "…"}
             sub={stats ? `${stats.tokens.toLocaleString()} tokens` : undefined}
           />
         </div>
@@ -348,9 +348,9 @@ export default function Dashboard() {
                 </div>
                 <p className="text-base font-medium">Nothing under the knife</p>
                 <p className="max-w-sm text-sm leading-6 text-muted-foreground">
-                  Start a takeover on the left. The agent loop — intake, survey,
-                  boot attempts, fix cycles, verification — will unfold here in
-                  real time.
+                  Start a takeover on the left. The agent loop (intake, survey,
+                  boot attempts, fix cycles, verification) unfolds here in real
+                  time.
                 </p>
               </div>
             ) : (
@@ -460,7 +460,7 @@ function NewRunDialog({
               id="run-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Billing dashboard — inherited"
+              placeholder="Billing dashboard handover"
               maxLength={80}
             />
           </div>
@@ -489,8 +489,9 @@ function NewRunDialog({
               </SelectContent>
             </Select>
             <p className="text-xs leading-5 text-muted-foreground">
-              The shape tunes the loop&apos;s expectations — what a boot failure
-              looks like, which fixes are on the table, when to stop honestly.
+              The shape tunes the loop&apos;s expectations: what a boot failure
+              looks like, which fixes are on the table, and when to stop
+              honestly.
             </p>
           </div>
           <DialogFooter className="gap-2">
@@ -706,7 +707,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
             </div>
             {sortedSteps.length === 0 ? (
               <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-                Queued — the first clone command lands any moment.
+                Queued. The first clone command lands any moment.
               </div>
             ) : (
               <ol className="relative space-y-0 px-5 py-2">
@@ -763,7 +764,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
             </div>
             {evidence.length === 0 ? (
               <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-                No receipts yet — the ledger fills as the loop verifies claims.
+                No receipts yet. The ledger fills as the loop verifies claims.
               </div>
             ) : (
               <div className="divide-y divide-border/60">
@@ -878,7 +879,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                   <div>
                     <p className="text-sm font-semibold">Executive summary</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Drafted live by Nemotron from the evidence ledger — nothing else.
+                      Drafted live by Nemotron, strictly from the evidence ledger.
                     </p>
                   </div>
                 </div>
@@ -934,7 +935,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
               body={
                 run.summary
                   ? "Ranked defects and unknowns, each with a repro command and the exact output that proved it."
-                  : "Filled at the end of the run — including, honestly, the things the agent could not verify."
+                  : "Filled at the end of the run, including the things the agent could not verify."
               }
             />
             <PackCard

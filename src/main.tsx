@@ -9,9 +9,6 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import "./index.css";
 
-// Heirloom ships dark-first; the light palette remains available for prefers-light users.
-document.documentElement.classList.add("dark");
-
 // Lazy load route components for better code splitting
 const Landing = lazy(() => import("./pages/Landing.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));

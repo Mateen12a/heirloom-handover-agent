@@ -40,7 +40,7 @@ export const draftSummary = action({
     const evidenceBlock = args.evidence
       .map(
         (e, i) =>
-          `${i + 1}. [${e.verdict}] ${e.claim} — proof: \`${e.command}\` (exit ${e.exitCode})`,
+          `${i + 1}. [${e.verdict}] ${e.claim} | proof: \`${e.command}\` (exit ${e.exitCode})`,
       )
       .join("\n");
 

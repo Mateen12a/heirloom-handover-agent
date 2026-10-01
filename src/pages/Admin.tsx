@@ -192,7 +192,7 @@ function AdminConsole() {
       <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Platform administration</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Users, roles, runs and spend — the whole estate in one view.
+          Users, roles, runs and spend, in one view.
         </p>
         <PlatformStats />
         <Tabs defaultValue="runs" className="mt-8 gap-0">
@@ -217,10 +217,10 @@ function PlatformStats() {
   const t = overview?.totals;
 
   const cards = [
-    { icon: Users, label: "Users", value: t ? String(t.users) : "—", sub: t ? `${t.newUsers24h} joined in 24 h` : undefined },
-    { icon: FlaskConical, label: "Takeovers", value: t ? String(t.runs) : "—", sub: t ? `${t.activeRuns} active now` : undefined },
-    { icon: Activity, label: "Live staging", value: t ? String(t.liveStaging) : "—" },
-    { icon: Coins, label: "Platform spend", value: t ? `$${t.credits.toFixed(2)}` : "—", sub: t ? `${t.tokens.toLocaleString()} tokens` : undefined },
+    { icon: Users, label: "Users", value: t ? String(t.users) : "…", sub: t ? `${t.newUsers24h} joined in 24 h` : undefined },
+    { icon: FlaskConical, label: "Takeovers", value: t ? String(t.runs) : "…", sub: t ? `${t.activeRuns} active now` : undefined },
+    { icon: Activity, label: "Live staging", value: t ? String(t.liveStaging) : "…" },
+    { icon: Coins, label: "Platform spend", value: t ? `$${t.credits.toFixed(2)}` : "…", sub: t ? `${t.tokens.toLocaleString()} tokens` : undefined },
   ];
 
   return (

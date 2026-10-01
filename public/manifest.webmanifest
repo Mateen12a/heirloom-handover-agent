@@ -1,11 +1,11 @@
 {
   "name": "Heirloom Handover Agent",
   "short_name": "Heirloom",
-  "description": "Proof-backed handover for inherited codebases — runbook, architecture map, risk register and an evidence ledger with receipts.",
+  "description": "Proof-backed handover for inherited codebases: a runbook, an architecture map, a risk register, and an evidence ledger with receipts.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f1420",
-  "theme_color": "#0f1420",
+  "background_color": "#fafbfd",
+  "theme_color": "#fafbfd",
   "icons": [
     {
       "src": "/heirloom.svg",

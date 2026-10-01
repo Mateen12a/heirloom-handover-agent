@@ -132,7 +132,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   </div>
                 <CardTitle className="text-xl">Welcome back</CardTitle>
                 <CardDescription>
-                  Sign in to Heirloom Handover Agent — your takeovers, evidence
+                  Sign in to Heirloom Handover Agent. Your takeovers, evidence
                   ledgers and handover packs are waiting.
                 </CardDescription>
               </CardHeader>
