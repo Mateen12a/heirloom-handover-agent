@@ -16,6 +16,13 @@ export const listScenarios = query({
   },
 });
 
+// Tells the UI which pipeline a new run will take: the live Nebius/Nemotron
+// pipeline when NEBIUS_API_KEY is configured, otherwise the demo replay.
+export const config = query({
+  args: {},
+  handler: async () => ({ liveMode: Boolean(process.env.NEBIUS_API_KEY) }),
+});
+
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -51,6 +58,7 @@ export const create = mutation({
     if (userId === null) throw new Error("Sign in required");
 
     const scenario = getScenario(shape);
+    const liveMode = Boolean(process.env.NEBIUS_API_KEY);
     const now = Date.now();
 
     const runId = await ctx.db.insert("runs", {
@@ -62,14 +70,20 @@ export const create = mutation({
       modelFast: "nvidia/nemotron-3-nano",
       status: "queued",
       stepsDone: 0,
-      stepsTotal: scenario.timeline.length,
-      fixAttempts: scenario.timeline.filter((s) => s.status === "retry").length,
+      stepsTotal: liveMode ? 8 : scenario.timeline.length,
+      fixAttempts: liveMode ? 0 : scenario.timeline.filter((s) => s.status === "retry").length,
       tokensUsed: 0,
       creditsUsed: 0,
       startedAt: now,
     });
 
-    await ctx.scheduler.runAfter(600, internal.engine.advance, { runId, seq: 0 });
+    if (liveMode) {
+      // Real pipeline: fetch the repo, call Nemotron, record live evidence.
+      await ctx.scheduler.runAfter(600, internal.live.runLive, { runId });
+    } else {
+      // Demo replay of the tuned scenario timeline.
+      await ctx.scheduler.runAfter(600, internal.engine.advance, { runId, seq: 0 });
+    }
     return runId;
   },
 });

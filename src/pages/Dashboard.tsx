@@ -171,6 +171,7 @@ export default function Dashboard() {
   const runs = useQuery(api.runs.list) ?? [];
   const stats = useQuery(api.runs.stats);
   const scenarios = useQuery(api.runs.listScenarios) ?? [];
+  const config = useQuery(api.runs.config);
 
   const [selectedId, setSelectedId] = useState<Id<"runs"> | null>(null);
   const [searchParams] = useSearchParams();
@@ -225,8 +226,11 @@ export default function Dashboard() {
               Takeover workspace
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Hand over an inherited repo. Watch the loop work. Read the
-              receipts.
+              {config === undefined
+                ? "Hand over an inherited repo. Watch the loop work. Read the receipts."
+                : config.liveMode
+                  ? "Live mode: runs execute against the real repository with Nebius Token Factory and NVIDIA Nemotron."
+                  : "Demo mode: add NEBIUS_API_KEY in the Keys tab to switch to the live pipeline."}
             </p>
           </div>
           <NewRunDialog
@@ -493,6 +497,7 @@ function NewRunDialog({
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
               placeholder="github.com/owner/messy-mern-app"
+              required
             />
           </div>
           <div className="grid gap-2">
