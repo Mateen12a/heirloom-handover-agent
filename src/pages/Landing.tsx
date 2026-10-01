@@ -67,7 +67,7 @@ export default function Landing() {
         <section className="relative overflow-hidden">
           <div className="hl-grid-strong absolute inset-0" />
           <div
-            className="hl-glow absolute -top-32 left-1/2 h-[420px] w-[720px] -translate-x-1/2"
+            className="hl-glow-duo absolute -top-32 left-1/2 h-[440px] w-[820px] -translate-x-1/2"
             aria-hidden="true"
           />
           <div className="hl-hero-fade absolute inset-0" />
@@ -79,6 +79,12 @@ export default function Landing() {
                 transition={{ duration: 0.5 }}
                 className="flex flex-wrap items-center gap-2"
               >
+                <p
+                  className="mr-1 text-xs font-semibold uppercase tracking-[0.14em]"
+                  style={{ color: "var(--heirloom-accent-strong)" }}
+                >
+                  Heirloom Handover Agent
+                </p>
                 <Badge
                   variant="outline"
                   className="gap-1.5 border-border bg-card/70 px-2.5 py-1 text-xs font-medium backdrop-blur"
@@ -105,10 +111,8 @@ export default function Landing() {
               >
                 Nobody hands you the manual.
                 <br />
-                <span style={{ color: "var(--heirloom-accent-strong)" }}>
-                  Heirloom writes it
-                </span>{" "}
-                — and proves it.
+                <span className="hl-gradient-text">Heirloom writes it</span> —
+                and proves it.
               </motion.h1>
 
               <motion.p
@@ -219,7 +223,13 @@ export default function Landing() {
             <span className="hidden sm:inline" aria-hidden="true">·</span>
             <span>Tavily-powered dependency research</span>
             <span className="hidden sm:inline" aria-hidden="true">·</span>
-            <span>Sandboxed, capped, reproducible runs</span>
+            <a
+              href="/catalog"
+              className="font-semibold transition-colors"
+              style={{ color: "var(--heirloom-accent-strong)" }}
+            >
+              Browse the playbook catalog →
+            </a>
           </div>
         </section>
 
@@ -564,9 +574,9 @@ export default function Landing() {
                 Hand over the mess. Get the manual — with receipts.
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-                Run your first takeover in minutes. The workspace walks the loop
-                live: intake, boot attempts, the fix cycle, the health check and
-                the pack.
+                Pick a playbook from the catalog, hand over the repo, and watch
+                the loop work — intake, boot attempts, fix cycles, the health
+                check and the pack.
               </p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Button size="lg" className="gap-2 px-5" onClick={() => (window.location.href = "/dashboard")}>
@@ -574,7 +584,7 @@ export default function Landing() {
                   <ArrowRight className="size-4" />
                 </Button>
                 <Button size="lg" variant="outline" asChild>
-                  <a href="/auth?returnTo=%2Fdashboard">Sign in first</a>
+                  <a href="/catalog">Browse the playbooks</a>
                 </Button>
               </div>
             </div>

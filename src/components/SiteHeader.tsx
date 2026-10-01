@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, ChevronDown, LayoutDashboard } from "lucide-react";
+import { LogOut, ChevronDown, LayoutDashboard, ShieldCheck } from "lucide-react";
 import { useNavigate, Link } from "react-router";
 
 export function SiteHeader() {
@@ -35,12 +35,12 @@ export function SiteHeader() {
           >
             Proof, not promises
           </a>
-          <a
-            href="/#benchmarks"
+          <Link
+            to="/catalog"
             className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            Benchmark
-          </a>
+            Playbooks
+          </Link>
           <a
             href="/#built-with"
             className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -68,6 +68,10 @@ export function SiteHeader() {
                 <DropdownMenuItem onClick={() => navigate("/dashboard")}>
                   <LayoutDashboard className="size-4" />
                   Workspace
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/admin")}>
+                  <ShieldCheck className="size-4" />
+                  Admin console
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

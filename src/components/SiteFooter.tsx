@@ -19,6 +19,12 @@ export function SiteFooter() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
+            <Link
+              to="/catalog"
+              className="transition-colors hover:text-foreground"
+            >
+              Playbook catalog
+            </Link>
             <a
               href="https://github.com/nebius/token-factory-cookbook"
               target="_blank"

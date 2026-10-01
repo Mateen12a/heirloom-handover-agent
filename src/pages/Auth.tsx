@@ -130,9 +130,10 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                       <HeirloomMark className="size-12 text-foreground" />
                     </button>
                   </div>
-                <CardTitle className="text-xl">Get Started</CardTitle>
+                <CardTitle className="text-xl">Welcome back</CardTitle>
                 <CardDescription>
-                  Enter your email to log in or sign up
+                  Sign in to Heirloom Handover Agent — your takeovers, evidence
+                  ledgers and handover packs are waiting.
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleEmailSubmit}>
@@ -278,7 +279,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
           )}
 
           <div className="py-4 px-6 text-xs text-center text-muted-foreground bg-muted border-t rounded-b-lg">
-            Heirloom · proof-backed handover for inherited codebases ·{" "}
+            Heirloom Handover Agent · proof-backed handover for inherited
+            codebases ·{" "}
             <a
               href="/"
               className="underline hover:text-primary transition-colors"

@@ -1,14 +1,14 @@
 {
-  "name": "Heirloom.com application",
-  "short_name": "Heirloom.com",
-  "description": "Heirloom.com application",
+  "name": "Heirloom Handover Agent",
+  "short_name": "Heirloom",
+  "description": "Proof-backed handover for inherited codebases — runbook, architecture map, risk register and an evidence ledger with receipts.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "background_color": "#0f1420",
+  "theme_color": "#0f1420",
   "icons": [
     {
-      "src": "/logo.svg",
+      "src": "/heirloom.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

@@ -31,8 +31,9 @@ export function HeirloomLogo({
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <HeirloomMark className={markClassName} />
       {!compact && (
-        <span className="text-[17px] font-semibold tracking-tight">
-          Heirloom
+        <span className="whitespace-nowrap text-[17px] font-semibold tracking-tight">
+          Heirloom{" "}
+          <span className="text-muted-foreground">Handover Agent</span>
         </span>
       )}
     </span>

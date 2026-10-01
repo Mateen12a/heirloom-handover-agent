@@ -20,8 +20,9 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
+import { findPlaybookByShape } from "@/lib/playbooks";
 
 import { HeirloomLogo } from "@/components/HeirloomLogo";
 import { Badge } from "@/components/ui/badge";
@@ -172,7 +173,12 @@ export default function Dashboard() {
   const scenarios = useQuery(api.runs.listScenarios) ?? [];
 
   const [selectedId, setSelectedId] = useState<Id<"runs"> | null>(null);
-  const [composerOpen, setComposerOpen] = useState(false);
+  const [searchParams] = useSearchParams();
+  const shapeParam = searchParams.get("shape");
+  const [composerOpen, setComposerOpen] = useState(() => {
+    const pb = shapeParam ? findPlaybookByShape(shapeParam) : undefined;
+    return Boolean(pb && pb.status === "playable");
+  });
 
   const activeRun = runs.find((r) => r._id === selectedId) ?? runs[0];
 
@@ -226,6 +232,11 @@ export default function Dashboard() {
           <NewRunDialog
             open={composerOpen}
             onOpenChange={setComposerOpen}
+            initialShape={
+              shapeParam && findPlaybookByShape(shapeParam)?.status === "playable"
+                ? shapeParam
+                : ""
+            }
             scenarios={scenarios.map((s) => ({ key: s.key, label: s.label, blurb: s.blurb }))}
             onCreated={(id) => setSelectedId(id)}
           >
@@ -389,18 +400,20 @@ function NewRunDialog({
   onOpenChange,
   scenarios,
   onCreated,
+  initialShape = "",
   children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   scenarios: { key: string; label: string; blurb: string }[];
   onCreated: (id: Id<"runs">) => void;
+  initialShape?: string;
   children: React.ReactNode;
 }) {
   const create = useMutation(api.runs.create);
   const [name, setName] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
-  const [shape, setShape] = useState("");
+  const [shape, setShape] = useState(initialShape);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
