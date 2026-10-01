@@ -9,44 +9,62 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, ChevronDown, LayoutDashboard, ShieldCheck } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { LogOut, ChevronDown, LayoutDashboard, Menu, ShieldCheck } from "lucide-react";
 import { useNavigate, Link } from "react-router";
+import { useState } from "react";
+
+const NAV_LINKS = [
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "Proof, not promises", href: "/#proof" },
+  { label: "Playbooks", href: "/catalog" },
+  { label: "Built with", href: "/#built-with" },
+];
 
 export function SiteHeader() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const closeAnd = (go: () => void) => () => {
+    setMenuOpen(false);
+    go();
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link to="/" className="transition-opacity hover:opacity-80">
-          <HeirloomLogo />
-        </Link>
-        <nav className="hidden items-center gap-1 md:flex">
-          <a
-            href="/#how-it-works"
-            className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            How it works
-          </a>
-          <a
-            href="/#proof"
-            className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            Proof, not promises
-          </a>
-          <Link
-            to="/catalog"
-            className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            Playbooks
+        <div className="flex items-center gap-1">
+          <Link to="/" className="transition-opacity hover:opacity-80">
+            <HeirloomLogo />
           </Link>
-          <a
-            href="/#built-with"
-            className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            Built with
-          </a>
+        </div>
+        <nav className="hidden items-center gap-1 md:flex">
+          {NAV_LINKS.map((l) =>
+            l.href.startsWith("/#") ? (
+              <a
+                key={l.href}
+                href={l.href}
+                className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                {l.label}
+              </a>
+            ) : (
+              <Link
+                key={l.href}
+                to={l.href}
+                className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                {l.label}
+              </Link>
+            ),
+          )}
         </nav>
         <div className="flex items-center gap-2">
           {isLoading ? (
@@ -94,11 +112,89 @@ export function SiteHeader() {
               >
                 Sign in
               </Button>
-              <Button onClick={() => navigate("/dashboard")}>
+              <Button className="hidden sm:inline-flex" onClick={() => navigate("/dashboard")}>
                 Open workspace
               </Button>
             </>
           )}
+
+          {/* Mobile menu */}
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="md:hidden"
+                aria-label="Open menu"
+              >
+                <Menu className="size-4" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-72">
+              <SheetHeader>
+                <SheetTitle className="text-left text-sm font-medium text-muted-foreground">
+                  Heirloom Handover Agent
+                </SheetTitle>
+              </SheetHeader>
+              <nav className="flex flex-col gap-1 px-4">
+                {NAV_LINKS.map((l) =>
+                  l.href.startsWith("/#") ? (
+                    <a
+                      key={l.href}
+                      href={l.href}
+                      onClick={closeAnd(() => {}) }
+                      className="rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                    >
+                      {l.label}
+                    </a>
+                  ) : (
+                    <Link
+                      key={l.href}
+                      to={l.href}
+                      onClick={closeAnd(() => {})}
+                      className="rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                    >
+                      {l.label}
+                    </Link>
+                  ),
+                )}
+              </nav>
+              <div className="mt-auto flex flex-col gap-2 border-t border-border/70 p-4">
+                {isAuthenticated ? (
+                  <>
+                    <Button variant="outline" className="w-full" onClick={closeAnd(() => navigate("/dashboard"))}>
+                      <LayoutDashboard className="size-4" />
+                      Workspace
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full"
+                      onClick={closeAnd(async () => {
+                        await signOut();
+                        navigate("/");
+                      })}
+                    >
+                      <LogOut className="size-4" />
+                      Sign out
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button className="w-full" onClick={closeAnd(() => navigate("/auth"))}>
+                      Sign in
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={closeAnd(() => navigate("/dashboard"))}
+                    >
+                      Open workspace
+                    </Button>
+                  </>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </header>

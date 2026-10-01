@@ -33,7 +33,7 @@ export function HeirloomLogo({
       {!compact && (
         <span className="whitespace-nowrap text-[17px] font-semibold tracking-tight">
           Heirloom{" "}
-          <span className="text-muted-foreground">Handover Agent</span>
+          <span className="hidden text-muted-foreground sm:inline">Handover Agent</span>
         </span>
       )}
     </span>

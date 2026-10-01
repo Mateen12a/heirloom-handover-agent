@@ -272,10 +272,32 @@ export default function Dashboard() {
           />
         </div>
 
+        {/* Mobile run picker: the desktop list column is hidden below lg */}
+        {runs.length > 0 && (
+          <div className="mt-6 lg:hidden">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Selected run</p>
+            <Select
+              value={activeRun?._id ?? ""}
+              onValueChange={(value) => setSelectedId(value as Id<"runs">)}
+            >
+              <SelectTrigger className="w-full" aria-label="Select a run">
+                <SelectValue placeholder="Choose a takeover" />
+              </SelectTrigger>
+              <SelectContent>
+                {runs.map((run) => (
+                  <SelectItem key={run._id} value={run._id}>
+                    {run.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* Main split */}
-        <div className="mt-8 grid gap-6 lg:grid-cols-[340px_1fr]">
-          {/* Run list */}
-          <section aria-label="Runs" className="flex flex-col gap-3">
+        <div className="mt-6 grid gap-6 lg:mt-8 lg:grid-cols-[340px_1fr]">
+          {/* Run list (desktop) */}
+          <section aria-label="Runs" className="hidden flex-col gap-3 lg:flex">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-sm font-semibold">Runs</h2>
               <span className="text-xs text-muted-foreground">
@@ -348,9 +370,9 @@ export default function Dashboard() {
                 </div>
                 <p className="text-base font-medium">Nothing under the knife</p>
                 <p className="max-w-sm text-sm leading-6 text-muted-foreground">
-                  Start a takeover on the left. The agent loop (intake, survey,
-                  boot attempts, fix cycles, verification) unfolds here in real
-                  time.
+                  Start your first takeover with the button above. The agent
+                  loop (intake, survey, boot attempts, fix cycles,
+                  verification) unfolds here in real time.
                 </p>
               </div>
             ) : (
