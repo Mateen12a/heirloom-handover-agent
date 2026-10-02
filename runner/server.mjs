@@ -20,6 +20,7 @@ import { createServer } from "node:http";
 import { timingSafeEqual, createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const PORT = Number(process.env.PORT || 8790);
 const TOKEN = process.env.RUNNER_TOKEN || "";
@@ -34,16 +35,8 @@ const REPO_URL_RE =
   /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(\/)?(\.git)?$/;
 
 // ── guardrails ─────────────────────────────────────────────────────────────
-if (typeof process.getuid === "function" && process.getuid() === 0) {
-  console.error(
-    "[runner] Refusing to run as root. Use a Dockerfile with `USER node`.",
-  );
-  process.exit(1);
-}
-if (!TOKEN) {
-  console.error("[runner] RUNNER_TOKEN is required.");
-  process.exit(1);
-}
+// The root and token checks run at server startup (see "listen" below), so
+// the execute() logic stays importable for selftests.
 
 // ── process execution with hard timeouts ───────────────────────────────────
 function run(command, args, { cwd, timeoutMs }) {
@@ -303,8 +296,25 @@ const server = createServer((req, res) => {
   });
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    `[runner] listening on :${PORT} as uid ${process.getuid?.() ?? "?"}`,
-  );
-});
+const isMain =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isMain) {
+  if (typeof process.getuid === "function" && process.getuid() === 0) {
+    console.error(
+      "[runner] Refusing to run as root. Use a Dockerfile with `USER node`.",
+    );
+    process.exit(1);
+  }
+  if (!TOKEN) {
+    console.error("[runner] RUNNER_TOKEN is required.");
+    process.exit(1);
+  }
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(
+      `[runner] listening on :${PORT} as uid ${process.getuid?.() ?? "?"}`,
+    );
+  });
+}
+
+export { execute };

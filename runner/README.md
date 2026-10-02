@@ -56,6 +56,16 @@ pipeline stays static-analysis only and says so in the run summary.
 
 ## Verify
 
+Without any server (tests the clone/install/fix/test core directly, no
+background process needed):
+
+```bash
+node runner/selftest.mjs                       # runs against lukeed/clsx
+node runner/selftest.mjs https://github.com/OWNER/REPO
+```
+
+Against a deployed instance:
+
 ```bash
 curl http://<YOUR_VM_IP>:8790/health
 curl -X POST http://<YOUR_VM_IP>:8790/execute \
