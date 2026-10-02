@@ -14,13 +14,13 @@
 "use node";
 
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 
 const NEBIUS_BASE = "https://api.tokenfactory.nebius.com/v1";
-const NEBIUS_PLAN_MODEL = process.env.NEBIUS_PLAN_MODEL || "nvidia/nemotron-3-ultra";
-const NEBIUS_FAST_MODEL = process.env.NEBIUS_FAST_MODEL || "nvidia/nemotron-3-nano";
+const NEBIUS_PLAN_MODEL = process.env.NEBIUS_PLAN_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b";
+const NEBIUS_FAST_MODEL = process.env.NEBIUS_FAST_MODEL || "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B";
 
 type FetchOk = { ok: true; status: number; body: unknown };
 type FetchFail = { ok: false; status: number; error: string };
@@ -97,12 +97,12 @@ async function callNebius(
   }
 }
 
+// Convex does not propagate auth identity to scheduled functions, so the
+// scheduling mutation passes the authenticated owner's id explicitly. Internal
+// functions are never callable from the client, so this is safe by construction.
 export const runLive = internalAction({
-  args: { runId: v.id("runs") },
-  handler: async (ctx, { runId }) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Sign in required");
-
+  args: { runId: v.id("runs"), userId: v.id("users") },
+  handler: async (ctx, { runId, userId }) => {
     const run = await ctx.runQuery(internal.liveWrite.getRun, { runId });
     if (!run) throw new Error("Run not found");
     if (run.userId !== userId) throw new Error("Run not found");
@@ -374,5 +374,39 @@ export const runLive = internalAction({
     });
 
     return { ok: true as const, verified, total: probes.length, outcome };
+  },
+});
+
+// Internal smoke test: creates a run owned by the newest signed-in user and
+// executes the full live pipeline against a real repository, then returns the
+// recorded steps/evidence. Reachable only from the Convex CLI or dashboard
+// (internal function), never from the client.
+export const smoke = internalAction({
+  args: { repoUrl: v.string(), name: v.optional(v.string()) },
+  handler: async (
+    ctx,
+    { repoUrl, name },
+  ): Promise<{
+    ok: boolean;
+    reason?: string;
+    runId?: Id<"runs">;
+    result?: unknown;
+    detail?: unknown;
+  }> => {
+    const started = await ctx.runMutation(internal.liveWrite.startSmokeRun, {
+      repoUrl,
+      name,
+    });
+    if (!started.ok) return { ok: false, reason: started.reason };
+
+    const result = await ctx.runAction(internal.live.runLive, {
+      runId: started.runId,
+      userId: started.userId,
+    });
+    const detail = await ctx.runQuery(internal.liveWrite.inspectRun, {
+      runId: started.runId,
+      userId: started.userId,
+    });
+    return { ok: true, runId: started.runId, result, detail };
   },
 });

@@ -66,11 +66,13 @@ export const create = mutation({
       name: name.trim() || "Untitled takeover",
       repoUrl: repoUrl.trim(),
       shape,
-      modelPlan: "nvidia/nemotron-3-ultra",
-      modelFast: "nvidia/nemotron-3-nano",
+      modelPlan: process.env.NEBIUS_PLAN_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
+      modelFast: process.env.NEBIUS_FAST_MODEL || "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
       status: "queued",
       stepsDone: 0,
-      stepsTotal: liveMode ? 8 : scenario.timeline.length,
+      // The live pipeline emits six feed steps: intake, survey, manifest,
+      // planning, probes, analysis.
+      stepsTotal: liveMode ? 6 : scenario.timeline.length,
       fixAttempts: liveMode ? 0 : scenario.timeline.filter((s) => s.status === "retry").length,
       tokensUsed: 0,
       creditsUsed: 0,
@@ -79,7 +81,7 @@ export const create = mutation({
 
     if (liveMode) {
       // Real pipeline: fetch the repo, call Nemotron, record live evidence.
-      await ctx.scheduler.runAfter(600, internal.live.runLive, { runId });
+      await ctx.scheduler.runAfter(600, internal.live.runLive, { runId, userId });
     } else {
       // Demo replay of the tuned scenario timeline.
       await ctx.scheduler.runAfter(600, internal.engine.advance, { runId, seq: 0 });

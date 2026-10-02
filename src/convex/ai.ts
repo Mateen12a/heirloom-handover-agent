@@ -35,7 +35,7 @@ export const draftSummary = action({
       return { ok: false as const, reason: "missing_key" as const };
     }
 
-    const model = process.env.NEBIUS_MODEL || "nvidia/nemotron-3-nano";
+    const model = process.env.NEBIUS_MODEL || "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B";
 
     const evidenceBlock = args.evidence
       .map(
