@@ -22,6 +22,27 @@ const NEBIUS_BASE = "https://api.tokenfactory.nebius.com/v1";
 const NEBIUS_PLAN_MODEL = process.env.NEBIUS_PLAN_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b";
 const NEBIUS_FAST_MODEL = process.env.NEBIUS_FAST_MODEL || "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B";
 
+// ── safety rails ───────────────────────────────────────────────────────────
+// A reasoning model asked for a "takeover plan" was observed describing how
+// to compromise a repository instead of how to hand it over. Planning is
+// therefore framed as onboarding for a new owner, and every model output is
+// screened before it is displayed or acted on. Unsafe text is never shown:
+// it is discarded, retried once, and otherwise fails the run honestly.
+const PLAN_SYSTEM_PROMPT =
+  "You write the onboarding and deployment plan a new engineer follows when taking ownership of an existing repository. " +
+  "Given a survey, output a terse numbered plan (max 7 steps) covering only: discovery, environment setup, configuration, running the existing tests or app, and verification. " +
+  "Never propose changing, rewriting, injecting into, exploiting, compromising or backdooring the repository or its dependencies, and never propose disabling, bypassing or weakening any security control. " +
+  "Never use the words payload, exploit, malicious or backdoor. Plain text only, no markdown headers, no preamble.";
+
+const UNSAFE_RE =
+  /(malicious|payload|exploit|backdoor|inject|malware|trojan|ransom|keylog|reverse shell|gain code execution|gain control|steal|exfiltrat|credential harvest|privilege escalation|bypass (the )?(auth|security)|disable (the )?(auth|security))/i;
+
+// Model-authored corrective commands run inside the sandbox, so the
+// allowlist blocks shell metacharacters, VCS publishing, package publishing
+// and any attack-flavoured vocabulary.
+const BANNED_FIX_RE =
+  /[;|`$><]|\brm\b|\bsudo\b|\bcurl\b|\bwget\b|\bchmod\b|\bchown\b|\bnc\b|\beval\b|\bkill\b|\bdd\b|\bmkfs\b|git\s+(push|commit|reset|clean)\b|npm\s+publish\b|\bpush\b|https?:\/\/|payload|exploit|malicious|backdoor|inject|malware|trojan|reverse shell/i;
+
 type FetchOk = { ok: true; status: number; body: unknown };
 type FetchFail = { ok: false; status: number; error: string };
 
@@ -230,46 +251,79 @@ export const runLive = internalAction({
       });
     }
 
-    // ── Phase 4: Nemotron takeover plan ────────────────────────────────────
-    const planRes = await callNebius(
-      apiKey,
-      NEBIUS_PLAN_MODEL,
-      [
-        {
-          role: "system",
-          content:
-            "You are the planning model of a codebase takeover agent. Given a repo survey, output a terse numbered takeover plan (max 7 steps). Plain text only. No markdown headers, no preamble.",
-        },
-        {
-          role: "user",
-          content: `Repo: ${meta.full_name}\nLanguage: ${meta.language}\nIdle for ${daysIdle} days\nSurvey: ${files.length} files; ${manifestNote}\nDependencies: ${depNames.slice(0, 25).join(", ") || "unknown"}\n\nProduce the takeover plan.`,
-        },
-      ],
-      700,
-    );
-    if (!planRes.ok) {
+    // ── Phase 4: Nemotron onboarding plan (screened) ──────────────────────
+    const planUserBase = `The engineering team is handing ${meta.full_name} over to a new owner.\nLanguage: ${meta.language}\nIdle for ${daysIdle} days\nSurvey: ${files.length} files; ${manifestNote}\nDependencies: ${depNames.slice(0, 25).join(", ") || "unknown"}\n\nWrite the first-day onboarding and deployment plan a new owner follows. Describe only reading, installing, configuring, running and verifying what already exists.`;
+
+    let planText = "";
+    let planTokens = 0;
+    let planOk = false;
+    for (let attempt = 0; attempt < 2 && !planOk; attempt++) {
+      const res = await callNebius(
+        apiKey,
+        NEBIUS_PLAN_MODEL,
+        [
+          { role: "system", content: PLAN_SYSTEM_PROMPT },
+          {
+            role: "user",
+            content:
+              planUserBase +
+              (attempt === 1
+                ? "\n\nThe previous attempt was rejected as unsafe. Produce a strictly onboarding-focused plan: read, install, configure, run, verify. No code changes, no writes to the repository, no security bypasses."
+                : ""),
+          },
+        ],
+        700,
+      );
+      if (!res.ok) {
+        if (attempt === 1) {
+          await ctx.runMutation(internal.liveWrite.appendStep, {
+            runId, userId, seq: seq++, title: "Planning",
+            detail: `Planning call failed: ${res.error}`,
+            model: NEBIUS_PLAN_MODEL, tokens: 0, status: "failed", at: at(),
+          });
+        }
+        continue;
+      }
+      planTokens += res.tokens;
+      if (UNSAFE_RE.test(res.text)) {
+        await ctx.runMutation(internal.liveWrite.appendStep, {
+          runId, userId, seq: seq++, title: "Planning",
+          detail: `The planning model returned instructions aimed at compromising the repository. The output was discarded and never shown.${
+            attempt === 0 ? " Retrying with a stricter brief." : " No safe plan produced, stopping honestly."
+          }`,
+          model: NEBIUS_PLAN_MODEL, tokens: res.tokens,
+          status: attempt === 0 ? "retry" : "failed", at: at(),
+        });
+        continue;
+      }
+      planText = res.text;
+      planOk = true;
       await ctx.runMutation(internal.liveWrite.appendStep, {
         runId, userId, seq: seq++, title: "Planning",
-        detail: `Nemotron call failed: ${planRes.error}`,
-        model: NEBIUS_PLAN_MODEL, tokens: 0, status: "failed", at: at(),
+        detail: planText,
+        model: NEBIUS_PLAN_MODEL, tokens: res.tokens, status: "ok", at: at(),
       });
+    }
+
+    const planCredits = Math.round((planTokens / 1000) * 5) / 100;
+    await ctx.runMutation(internal.liveWrite.appendUsage, {
+      userId, runId, tokens: planTokens, credits: planCredits, at: at(),
+    });
+    totalTokens += planTokens;
+    totalCredits += planCredits;
+
+    if (!planOk) {
       await ctx.runMutation(internal.liveWrite.patchRun, {
         runId,
-        patch: { status: "failed", finishedAt: at(), summary: `Planning failed: ${planRes.error}` },
+        patch: {
+          status: "failed",
+          finishedAt: at(),
+          summary:
+            "Planning stopped honestly: the planning model did not return a safe, onboarding-focused plan, so nothing was displayed.",
+        },
       });
       return { ok: false as const, reason: "plan_failed" as const };
     }
-    await ctx.runMutation(internal.liveWrite.appendStep, {
-      runId, userId, seq: seq++, title: "Planning",
-      detail: planRes.text,
-      model: NEBIUS_PLAN_MODEL, tokens: planRes.tokens, status: "ok", at: at(),
-    });
-    await ctx.runMutation(internal.liveWrite.appendUsage, {
-      userId, runId, tokens: planRes.tokens,
-      credits: Math.round((planRes.tokens / 1000) * 5) / 100, at: at(),
-    });
-    totalTokens += planRes.tokens;
-    totalCredits += Math.round((planRes.tokens / 1000) * 5) / 100;
 
     // ── Phase 5: deployability probes ──────────────────────────────────────
     await ctx.runMutation(internal.liveWrite.patchRun, {
@@ -434,8 +488,7 @@ export const runLive = internalAction({
               };
               diagnosis = parsed.diagnosis || diagnosis;
               const candidate = (parsed.fixCommand || "").trim();
-              const banned = /[;|`$><]|\brm\b|\bsudo\b|\bcurl\b|\bwget\b|\bchmod\b|\bchown\b|https?:\/\//i;
-              if (candidate && candidate.length <= 220 && !banned.test(candidate)) {
+              if (candidate && candidate.length <= 220 && !BANNED_FIX_RE.test(candidate)) {
                 fixCommand = candidate;
               }
             } catch {
@@ -443,6 +496,13 @@ export const runLive = internalAction({
             }
           } else {
             diagnosis = `Diagnosis call failed: ${diag.error}`;
+          }
+
+          // Screen the diagnosis prose too: an unsafe explanation must not be
+          // displayed, and it voids any proposed command.
+          if (UNSAFE_RE.test(diagnosis)) {
+            diagnosis = "Diagnosis discarded (the model returned unsafe instructions).";
+            fixCommand = null;
           }
 
           await ctx.runMutation(internal.liveWrite.appendStep, {
@@ -525,6 +585,10 @@ export const runLive = internalAction({
       });
       totalTokens += analysisRes.tokens;
       totalCredits += Math.round((analysisRes.tokens / 1000) * 5) / 100;
+      if (UNSAFE_RE.test(analysisRes.text)) {
+        analysisText =
+          "Analysis discarded: the diagnosis model returned instructions aimed at the repository, so they were never recorded.";
+      }
     }
 
     await ctx.runMutation(internal.liveWrite.appendStep, {
