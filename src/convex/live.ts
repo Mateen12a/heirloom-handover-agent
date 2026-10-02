@@ -199,41 +199,123 @@ export const runLive = internalAction({
     const files = tree.filter((t) => t.type === "blob");
     const count = (re: RegExp) => files.filter((f) => re.test(f.path)).length;
 
+    // Inherited repos are not always npm projects, so the census counts the
+    // ecosystems we can actually inspect and execute.
+    const censusNote = [
+      `${files.length} files`,
+      `${count(/\.jsx?$/)} JS/JSX`,
+      `${count(/\.tsx?$/)} TS/TSX`,
+      `${count(/\.py$/)} Python`,
+      `${count(/\.rs$/)} Rust`,
+      `${count(/\.go$/)} Go`,
+      `${count(/package\.json$/)} package.json`,
+      `${count(/Dockerfile|Containerfile|compose\.ya?ml/i)} container assets`,
+      `${count(/\.env\.(example|sample|template)/)} env templates`,
+      `${count(/\.test\.|\.spec\.|test_[^/]*\.py|[^/]*_test\.py/)} test files`,
+      `${count(/\.md$/)} docs`,
+    ].join(", ");
+    const sourceFiles = count(/\.(jsx?|tsx?|py|rs|go|rb|php|java|kt|cs)$/);
+    const languageGuess =
+      sourceFiles === 0
+        ? `no source files detected in the tree (GitHub labels it ${meta.language ?? "unknown"})`
+        : count(/\.py$/) > count(/\.(jsx?|tsx?)$/)
+          ? "Python"
+          : count(/\.(jsx?|tsx?)$/) > 0
+            ? "JavaScript/TypeScript"
+            : meta.language ?? "unknown";
+
     await ctx.runMutation(internal.liveWrite.appendStep, {
       runId, userId, seq: seq++, title: "Static survey",
-      detail: `Indexed ${files.length} files. ${count(/\.jsx?$/)} JS/JSX, ${count(/\.tsx?$/)} TS/TSX, ${count(/package\.json$/)} package.json, ${count(/Dockerfile/i)} Dockerfiles, ${count(/\.env\.example/)} env templates, ${count(/\.test\.|\.spec\./)} test files, ${count(/\.(md)$/)} docs.`,
+      detail: `Indexed ${censusNote}.`,
       model: NEBIUS_FAST_MODEL, tokens: 0, status: "ok", at: at(),
     });
 
     // ── Phase 3: manifest forensics ────────────────────────────────────────
-    let manifestNote = "No root package.json found.";
+    // Detect the dependency manifest by ecosystem instead of assuming npm, so
+    // a Python or Go repo is described in its own terms instead of being
+    // reported as missing a package.json.
+    const rootFiles = new Set(
+      files.filter((f) => !f.path.includes("/")).map((f) => f.path),
+    );
+    const manifest = (
+      [
+        { name: "package.json", ecosystem: "Node.js" },
+        { name: "pyproject.toml", ecosystem: "Python" },
+        { name: "requirements.txt", ecosystem: "Python" },
+        { name: "setup.py", ecosystem: "Python" },
+        { name: "Pipfile", ecosystem: "Python" },
+        { name: "Cargo.toml", ecosystem: "Rust" },
+        { name: "go.mod", ecosystem: "Go" },
+        { name: "composer.json", ecosystem: "PHP" },
+        { name: "Gemfile", ecosystem: "Ruby" },
+        { name: "pom.xml", ecosystem: "Java" },
+        { name: "build.gradle", ecosystem: "Java/Kotlin" },
+      ] as const
+    ).find((m) => rootFiles.has(m.name));
+    const ecosystem = manifest?.ecosystem ?? "none detected";
+
+    let manifestNote = manifest
+      ? `Root manifest ${manifest.name}, so this is a ${manifest.ecosystem} project.`
+      : `No dependency manifest at the repo root (checked package.json, pyproject.toml, requirements.txt, Cargo.toml, go.mod, composer.json, Gemfile, pom.xml, build.gradle). File mix suggests ${languageGuess}.`;
+    let manifestText = "";
     let depNames: string[] = [];
     let scripts: string[] = [];
     let depEntries: { name: string; version: string }[] = [];
-    const manifestRes = await fetchJson(`${base}/contents/package.json?ref=${meta.default_branch}`);
-    if (manifestRes.ok) {
-      const mf = manifestRes.body as { content?: string; encoding?: string };
-      try {
-        const pkg = JSON.parse(
-          Buffer.from(mf.content ?? "", mf.encoding === "base64" ? "base64" : "utf8").toString("utf8"),
-        ) as {
-          name?: string;
-          version?: string;
-          scripts?: Record<string, string>;
-          dependencies?: Record<string, string>;
-          devDependencies?: Record<string, string>;
-        };
-        const deps = Object.keys(pkg.dependencies ?? {});
-        const devDeps = Object.keys(pkg.devDependencies ?? {});
-        depNames = deps;
-        scripts = Object.keys(pkg.scripts ?? {});
-        depEntries = Object.entries(pkg.dependencies ?? {}).map(([name, version]) => ({
-          name,
-          version,
-        }));
-        manifestNote = `${pkg.name ?? "unnamed"} v${pkg.version ?? "?"}: ${deps.length} runtime deps, ${devDeps.length} dev deps. Scripts: ${scripts.join(", ") || "none"}.`;
-      } catch {
-        manifestNote = "package.json exists but could not be parsed.";
+
+    if (manifest) {
+      const manifestRes = await fetchJson(
+        `${base}/contents/${manifest.name}?ref=${meta.default_branch}`,
+      );
+      if (manifestRes.ok) {
+        const mf = manifestRes.body as { content?: string; encoding?: string };
+        try {
+          const raw = Buffer.from(
+            mf.content ?? "",
+            mf.encoding === "base64" ? "base64" : "utf8",
+          ).toString("utf8");
+          manifestText = raw;
+
+          if (manifest.name === "package.json") {
+            const pkg = JSON.parse(raw) as {
+              name?: string;
+              version?: string;
+              scripts?: Record<string, string>;
+              dependencies?: Record<string, string>;
+              devDependencies?: Record<string, string>;
+            };
+            depNames = Object.keys(pkg.dependencies ?? {});
+            const devDeps = Object.keys(pkg.devDependencies ?? {});
+            scripts = Object.keys(pkg.scripts ?? {});
+            depEntries = Object.entries(pkg.dependencies ?? {}).map(([name, version]) => ({
+              name,
+              version,
+            }));
+            manifestNote = `${pkg.name ?? "unnamed"} v${pkg.version ?? "?"} (Node.js): ${depNames.length} runtime deps, ${devDeps.length} dev deps. Scripts: ${scripts.join(", ") || "none"}.`;
+          } else {
+            // Text manifests: surface the pinned/required package names.
+            const deps = raw
+              .split("\n")
+              .map((l) => l.trim())
+              .filter((l) => l && !l.startsWith("#") && /[=<>~]/.test(l))
+              .slice(0, 20);
+            depNames = deps
+              .map((l) => l.split(/[=<>~ ]/)[0])
+              .filter((n) => /^[A-Za-z@]/.test(n));
+            if (manifest.name === "requirements.txt") {
+              depEntries = deps.map((l) => {
+                const [name, version] = l.split("==");
+                return { name, version: version ?? "*" };
+              });
+              manifestNote = `requirements.txt pins ${depEntries.length} Python packages: ${depNames.slice(0, 10).join(", ")}${depEntries.length > 10 ? ", …" : ""}.`;
+            } else {
+              manifestNote = `${manifest.name} present (${manifest.ecosystem}); ${raw.split("\n").length} lines of manifest. Run commands come from this manifest, not from npm scripts.`;
+            }
+          }
+        } catch {
+          manifestNote = `${manifest.name} found (${manifest.ecosystem}) but could not be parsed.`;
+        }
+      } else {
+        manifestNote = `${manifest.name} listed in the tree but its contents could not be fetched.`;
       }
     }
 
@@ -340,34 +422,66 @@ export const runLive = internalAction({
       exit: 0,
       verdict: "verified",
     });
+    const isNode = ecosystem === "Node.js";
     probes.push({
-      claim: "The manifest declares at least one runnable script.",
-      command: "cat package.json | jq .scripts",
+      claim: isNode
+        ? "The manifest declares at least one runnable script."
+        : "The repo declares a dependency manifest a new owner can install from.",
+      command: isNode
+        ? "cat package.json | jq .scripts"
+        : `head -20 ${manifest?.name ?? "manifest"}`,
       output: manifestNote,
-      exit: scripts.length > 0 ? 0 : 1,
-      verdict: scripts.length > 0 ? "verified" : "unverified",
+      exit: isNode ? (scripts.length > 0 ? 0 : 1) : manifest ? 0 : 1,
+      verdict: isNode
+        ? scripts.length > 0
+          ? "verified"
+          : "unverified"
+        : manifest
+          ? "verified"
+          : "unverified",
     });
-    const hasTests = count(/\.test\.|\.spec\.|__tests__/) > 0 || scripts.some((s) => s.includes("test"));
+
+    const jsTestFiles = count(/\.test\.|\.spec\.|__tests__/);
+    const pyTestFiles = count(/(^|\/)(test_[^/]*\.py|[^/]*_test\.py|tests?\/)/);
+    const testFiles = jsTestFiles + pyTestFiles;
+    const declaresTestCmd =
+      scripts.some((s) => s.includes("test")) ||
+      /pytest|unittest|tox|nose/.test(manifestText);
+    const hasTests = testFiles > 0 || declaresTestCmd;
     probes.push({
       claim: "The repo ships a runnable test suite.",
-      command: "find . -name '*.test.*' -o -name '*.spec.*' | wc -l",
-      output: `${count(/\.test\.|\.spec\./)} test files on disk; test script declared: ${scripts.includes("test") ? "yes" : "no"}.`,
+      command:
+        "find . \\( -name '*test*' -o -name '*spec*' \\) -not -path './node_modules/*' | wc -l",
+      output: `${testFiles} candidate test files on disk (JS ${jsTestFiles}, Python ${pyTestFiles}); test runner declared: ${declaresTestCmd ? "yes" : "no"}.`,
       exit: hasTests ? 0 : 1,
       verdict: hasTests ? "verified" : "unverified",
     });
+
+    const envDocCount = count(
+      /\.env\.(example|sample|template)|(^|\/)env\.(example|sample)/,
+    );
     probes.push({
       claim: "Environment contract is documented for a new operator.",
-      command: "ls .env.example 2>/dev/null || echo MISSING",
-      output: count(/\.env\.example/) > 0 ? ".env.example present." : "No .env.example. Operator must reconstruct variables from code.",
-      exit: count(/\.env\.example/) > 0 ? 0 : 1,
-      verdict: count(/\.env\.example/) > 0 ? "verified" : "unverified",
+      command: "ls .env.example .env.sample env.example 2>/dev/null || echo MISSING",
+      output:
+        envDocCount > 0
+          ? `${envDocCount} env template file(s) present.`
+          : "No env template found. Operator must reconstruct variables from code or docs.",
+      exit: envDocCount > 0 ? 0 : 1,
+      verdict: envDocCount > 0 ? "verified" : "unverified",
     });
+
+    const containerAssets = count(
+      /Dockerfile|Containerfile|(^|\/)(docker-)?compose\.ya?ml$|devcontainer\.json/i,
+    );
     probes.push({
-      claim: "Containerization assets exist or the loop must author them.",
-      command: "find . -iname 'Dockerfile*' | wc -l",
-      output: `${count(/Dockerfile/i)} Dockerfile(s) found.`,
-      exit: count(/Dockerfile/i) > 0 ? 0 : 1,
-      verdict: count(/Dockerfile/i) > 0 ? "verified" : "unverified",
+      claim:
+        "Containerization or devcontainer assets exist or the loop must author them.",
+      command:
+        "find . -iname 'Dockerfile*' -o -iname 'compose*.yml' -o -iname 'devcontainer.json' | wc -l",
+      output: `${containerAssets} container/devcontainer asset(s) found.`,
+      exit: containerAssets > 0 ? 0 : 1,
+      verdict: containerAssets > 0 ? "verified" : "unverified",
     });
     probes.push({
       claim: "Repository has an open-source license on file.",
@@ -564,11 +678,11 @@ export const runLive = internalAction({
         {
           role: "system",
           content:
-            "You are the diagnosis model of a codebase takeover agent. Given probe results, write the handover risk summary. Max 90 words. Plain text. Lead with the single biggest handover risk, then list the gaps as short sentences.",
+            "You are the handover analyst for an inherited codebase. Given repo facts and probe results, write the handover risk summary. Max 90 words. Plain text. Lead with the single biggest handover risk, then list the gaps as short sentences. Be specific about the project's ecosystem: if it is not a Node.js project, never treat a missing package.json as a defect, and say what the operator should do instead.",
         },
         {
           role: "user",
-          content: `Repo ${meta.full_name}, idle ${daysIdle} days.\nProbe results:\n${probes
+          content: `Repo ${meta.full_name}, idle ${daysIdle} days.\nSurvey: ${censusNote}.\nManifest: ${manifestNote}\nProbe results:\n${probes
             .map((p) => `[${p.verdict}] ${p.claim} (${p.output})`)
             .join("\n")}\nExecution: ${execLine}`,
         },
