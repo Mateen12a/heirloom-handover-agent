@@ -513,7 +513,7 @@ export const runLive = internalAction({
             .join("\n")}\nExecution: ${execLine}`,
         },
       ],
-      500,
+      800,
     );
 
     let analysisText = "Analysis unavailable.";

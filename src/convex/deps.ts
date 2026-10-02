@@ -7,10 +7,11 @@
 "use node";
 
 import { v } from "convex/values";
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
+import type { GenericActionCtx } from "convex/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { api, internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { DataModel, Doc } from "./_generated/dataModel";
 
 const MAX_DEPS = 8;
 
@@ -83,19 +84,15 @@ function pickNote(results: TavilyResult[]): string | null {
   return note.length > 180 ? `${note.slice(0, 177)}...` : note;
 }
 
-export const research = action({
-  args: { runId: v.id("runs") },
-  handler: async (
-    ctx,
-    { runId },
-  ): Promise<{ researched: number; tavily: boolean; done: boolean }> => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Sign in required");
-    await ctx.runMutation(internal.liveWrite.assertRunOwner, { runId, userId });
+type ResearchResult = { researched: number; tavily: boolean; done: boolean };
 
-    const deps: Doc<"dependencies">[] = await ctx.runQuery(api.runs.listDependencies, {
-      runId,
-    });
+// Shared research loop: npm registry lookup plus Tavily notes, written back
+// to the dependencies table. Used by the client action (authed) and the
+// internal action (CLI verification).
+async function researchDeps(
+  ctx: GenericActionCtx<DataModel>,
+  deps: Doc<"dependencies">[],
+): Promise<ResearchResult> {
     const pending = deps
       .filter((d) => d.state === "pending" || !d.latest)
       .slice(0, MAX_DEPS);
@@ -139,5 +136,30 @@ export const research = action({
     }
 
     return { researched: pending.length, tavily: tavilyUsed, done: true };
+}
+
+export const research = action({
+  args: { runId: v.id("runs") },
+  handler: async (ctx, { runId }): Promise<ResearchResult> => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("Sign in required");
+    await ctx.runMutation(internal.liveWrite.assertRunOwner, { runId, userId });
+    const deps: Doc<"dependencies">[] = await ctx.runQuery(api.runs.listDependencies, {
+      runId,
+    });
+    return researchDeps(ctx, deps);
+  },
+});
+
+// CLI verification path (internal, never client-callable): the same loop
+// without a client auth context.
+export const researchInternal = internalAction({
+  args: { runId: v.id("runs") },
+  handler: async (ctx, { runId }): Promise<ResearchResult> => {
+    const deps: Doc<"dependencies">[] = await ctx.runQuery(
+      internal.liveWrite.getDependencies,
+      { runId },
+    );
+    return researchDeps(ctx, deps);
   },
 });

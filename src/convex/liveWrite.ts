@@ -139,6 +139,15 @@ export const insertDependency = internalMutation({
   },
 });
 
+export const getDependencies = internalQuery({
+  args: { runId: v.id("runs") },
+  handler: async (ctx, { runId }) =>
+    ctx.db
+      .query("dependencies")
+      .withIndex("by_run", (q) => q.eq("runId", runId))
+      .collect(),
+});
+
 export const patchDependency = internalMutation({
   args: {
     depId: v.id("dependencies"),
