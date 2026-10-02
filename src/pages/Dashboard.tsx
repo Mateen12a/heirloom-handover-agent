@@ -153,6 +153,13 @@ function fmtTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function tierLabel(model?: string | null): string {
+  if (!model) return "Nemotron";
+  if (/nano/i.test(model)) return "Nemotron 3 Nano";
+  if (/ultra/i.test(model)) return "Nemotron 3 Ultra";
+  return model.replace(/^nvidia\//, "");
+}
+
 function fmtDateTime(ts: number): string {
   return new Date(ts).toLocaleString([], {
     month: "short",
@@ -204,7 +211,7 @@ export default function Dashboard() {
                 background: "var(--heirloom-accent-soft)",
               }}
             >
-              Token Factory · Nemotron
+              Token Factory · {tierLabel(config?.modelPlan)}
             </Badge>
           </div>
           <div className="flex items-center gap-2">
@@ -787,18 +794,13 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                         <p className="text-sm font-medium">{step.title}</p>
                         <span
                           className="rounded px-1.5 py-0.5 text-[10px] font-medium"
-                          style={{
-                            background:
-                              step.model === run.modelPlan
-                                ? "var(--heirloom-accent-soft)"
-                                : "var(--muted)",
-                            color:
-                              step.model === run.modelPlan
-                                ? "var(--heirloom-accent-strong)"
-                                : "var(--muted-foreground)",
-                          }}
+                          style={
+                            /nano/i.test(step.model)
+                              ? { background: "var(--muted)", color: "var(--muted-foreground)" }
+                              : { background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }
+                          }
                         >
-                          {step.model === run.modelPlan ? "ultra" : "nano"}
+                          {/nano/i.test(step.model) ? "nano" : /ultra/i.test(step.model) ? "ultra" : "model"}
                         </span>
                         <span className="hl-terminal ml-auto text-[10px] text-muted-foreground">
                           {step.tokens.toLocaleString()} tok · {fmtTime(step.at)}

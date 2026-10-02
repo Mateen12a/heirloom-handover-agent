@@ -174,6 +174,92 @@ export const assertRunOwner = internalMutation({
   },
 });
 
+// Wipes a run's timeline, ledger and usage while keeping the run document, so
+// a clean re-run starts from an empty feed. Internal tooling only.
+export const resetRun = internalMutation({
+  args: { runId: v.id("runs") },
+  handler: async (ctx, { runId }) => {
+    for (const table of ["runSteps", "evidence", "dependencies"] as const) {
+      for (const row of await ctx.db
+        .query(table)
+        .withIndex("by_run", (q) => q.eq("runId", runId))
+        .collect()) {
+        await ctx.db.delete(row._id);
+      }
+    }
+    for (const row of await ctx.db.query("usage").collect()) {
+      if (row.runId === runId) await ctx.db.delete(row._id);
+    }
+    await ctx.db.patch(runId, {
+      status: "queued",
+      stepsDone: 0,
+      stepsTotal: 9,
+      fixAttempts: 0,
+      tokensUsed: 0,
+      creditsUsed: 0,
+      // Re-read the model ids so the run card can never show a stale tier.
+      modelPlan: process.env.NEBIUS_PLAN_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
+      modelFast: process.env.NEBIUS_FAST_MODEL || "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+      startedAt: Date.now(),
+      summary: undefined,
+      finishedAt: undefined,
+      health: undefined,
+    });
+  },
+});
+
+// Deletes a run and every child row. Internal tooling only.
+export const purgeRun = internalMutation({
+  args: { runId: v.id("runs") },
+  handler: async (ctx, { runId }) => {
+    for (const table of ["runSteps", "evidence", "dependencies"] as const) {
+      for (const row of await ctx.db
+        .query(table)
+        .withIndex("by_run", (q) => q.eq("runId", runId))
+        .collect()) {
+        await ctx.db.delete(row._id);
+      }
+    }
+    for (const row of await ctx.db.query("usage").collect()) {
+      if (row.runId === runId) await ctx.db.delete(row._id);
+    }
+    await ctx.db.delete(runId);
+    return { ok: true as const };
+  },
+});
+
+// Dev guard: scans every recorded step for the vocabulary that indicates the
+// model slipped into describing an attack on the repository. Used to verify
+// that nothing judge-visible contains such text.
+export const scanUnsafeText = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const pattern =
+      /(malicious|payload|exploit|backdoor|inject|malware|trojan|ransom|keylog|reverse shell|gain code execution|gain control|steal|exfiltrat|credential harvest|privilege escalation)/i;
+    const runs = await ctx.db.query("runs").collect();
+    const hits: { run: string; status: string; title: string; snippet: string }[] = [];
+    for (const run of runs) {
+      const steps = await ctx.db
+        .query("runSteps")
+        .withIndex("by_run", (q) => q.eq("runId", run._id))
+        .collect();
+      for (const step of steps) {
+        if (pattern.test(step.detail)) {
+          const match = step.detail.match(pattern);
+          const idx = match?.index ?? 0;
+          hits.push({
+            run: run.name,
+            status: run.status,
+            title: step.title,
+            snippet: step.detail.slice(Math.max(0, idx - 60), idx + 80),
+          });
+        }
+      }
+    }
+    return { runsScanned: runs.length, hits };
+  },
+});
+
 // CLI-only introspection for debugging stuck runs (internal, never client-callable).
 export const debugRuns = internalQuery({
   args: {},

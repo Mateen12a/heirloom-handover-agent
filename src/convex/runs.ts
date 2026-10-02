@@ -23,6 +23,8 @@ export const config = query({
   handler: async () => ({
     liveMode: Boolean(process.env.NEBIUS_API_KEY),
     runnerMode: Boolean(process.env.RUNNER_URL && process.env.RUNNER_TOKEN),
+    modelPlan: process.env.NEBIUS_PLAN_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
+    modelFast: process.env.NEBIUS_FAST_MODEL || "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
   }),
 });
 
