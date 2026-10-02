@@ -14,6 +14,7 @@ const Landing = lazy(() => import("./pages/Landing.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const Catalog = lazy(() => import("./pages/Catalog.tsx"));
+const Sample = lazy(() => import("./pages/Sample.tsx"));
 const Admin = lazy(() => import("./pages/Admin.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
@@ -127,6 +128,7 @@ createRoot(document.getElementById("root")!).render(
                 element={<AuthPage redirectAfterAuth="/dashboard" />}
               />
               <Route path="/catalog" element={<Catalog />} />
+              <Route path="/sample" element={<Sample />} />
               <Route
                 path="/dashboard"
                 element={

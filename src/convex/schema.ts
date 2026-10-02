@@ -67,6 +67,8 @@ const schema = defineSchema(
       startedAt: v.number(),
       finishedAt: v.optional(v.number()),
       summary: v.optional(v.string()),
+      // The one seeded run anyone can open without signing in.
+      isSample: v.optional(v.boolean()),
     })
       .index("by_user", ["userId"])
       .index("by_user_status", ["userId", "status"]),
@@ -114,6 +116,7 @@ const schema = defineSchema(
       version: v.string(),
       latest: v.string(),
       state: v.union(
+        v.literal("pending"),
         v.literal("current"),
         v.literal("outdated"),
         v.literal("vulnerable"),

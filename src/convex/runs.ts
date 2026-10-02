@@ -20,7 +20,10 @@ export const listScenarios = query({
 // pipeline when NEBIUS_API_KEY is configured, otherwise the demo replay.
 export const config = query({
   args: {},
-  handler: async () => ({ liveMode: Boolean(process.env.NEBIUS_API_KEY) }),
+  handler: async () => ({
+    liveMode: Boolean(process.env.NEBIUS_API_KEY),
+    runnerMode: Boolean(process.env.RUNNER_URL && process.env.RUNNER_TOKEN),
+  }),
 });
 
 export const list = query({
@@ -57,6 +60,25 @@ export const create = mutation({
     const userId = await getAuthUserId(ctx);
     if (userId === null) throw new Error("Sign in required");
 
+    const trimmed = repoUrl.trim();
+    const isGithub = /^(https?:\/\/)?(www\.)?github\.com\/[\w.-]+\/[\w.-]+(\/)?(\.git)?$/i.test(trimmed);
+    if (!isGithub) {
+      throw new Error("Only public github.com repository URLs are supported.");
+    }
+
+    // Credit budget guard: cap how often one account can spend.
+    const existing = await ctx.db
+      .query("runs")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    if (existing.length >= 20) {
+      throw new Error("This account reached its run limit (20). Contact the operator to raise it.");
+    }
+    if (existing.filter((r) => r.startedAt > dayAgo).length >= 6) {
+      throw new Error("Daily run limit reached (6 per 24 hours). Try again tomorrow.");
+    }
+
     const scenario = getScenario(shape);
     const liveMode = Boolean(process.env.NEBIUS_API_KEY);
     const now = Date.now();
@@ -70,9 +92,10 @@ export const create = mutation({
       modelFast: process.env.NEBIUS_FAST_MODEL || "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
       status: "queued",
       stepsDone: 0,
-      // The live pipeline emits six feed steps: intake, survey, manifest,
-      // planning, probes, analysis.
-      stepsTotal: liveMode ? 6 : scenario.timeline.length,
+      // The live pipeline emits six feed steps without the sandbox runner;
+      // the execution phase adds up to three more. Finalize trims the total
+      // to the exact count.
+      stepsTotal: liveMode ? (process.env.RUNNER_URL ? 9 : 6) : scenario.timeline.length,
       fixAttempts: liveMode ? 0 : scenario.timeline.filter((s) => s.status === "retry").length,
       tokensUsed: 0,
       creditsUsed: 0,
@@ -191,5 +214,31 @@ export const listDependencies = query({
       .query("dependencies")
       .withIndex("by_run", (q) => q.eq("runId", runId))
       .collect();
+  },
+});
+
+// The seeded sample run: a completed real takeover anyone can open, signed in
+// or not, without spending a credit.
+export const sample = query({
+  args: {},
+  handler: async (ctx) => {
+    const run = await ctx.db
+      .query("runs")
+      .filter((q) => q.eq(q.field("isSample"), true))
+      .first();
+    if (!run) return null;
+    const steps = await ctx.db
+      .query("runSteps")
+      .withIndex("by_run", (q) => q.eq("runId", run._id))
+      .collect();
+    const evidence = await ctx.db
+      .query("evidence")
+      .withIndex("by_run", (q) => q.eq("runId", run._id))
+      .collect();
+    const dependencies = await ctx.db
+      .query("dependencies")
+      .withIndex("by_run", (q) => q.eq("runId", run._id))
+      .collect();
+    return { run, steps, evidence, dependencies };
   },
 });

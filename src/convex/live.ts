@@ -118,6 +118,8 @@ export const runLive = internalAction({
 
     const at = () => Date.now();
     let seq = 0;
+    let totalTokens = 0;
+    let totalCredits = 0;
 
     // Parse owner/repo from any common GitHub URL shape.
     const m = run.repoUrl.match(/github\.com\/([^/\s]+)\/([^/\s#?]+)/i);
@@ -186,6 +188,7 @@ export const runLive = internalAction({
     let manifestNote = "No root package.json found.";
     let depNames: string[] = [];
     let scripts: string[] = [];
+    let depEntries: { name: string; version: string }[] = [];
     const manifestRes = await fetchJson(`${base}/contents/package.json?ref=${meta.default_branch}`);
     if (manifestRes.ok) {
       const mf = manifestRes.body as { content?: string; encoding?: string };
@@ -203,6 +206,10 @@ export const runLive = internalAction({
         const devDeps = Object.keys(pkg.devDependencies ?? {});
         depNames = deps;
         scripts = Object.keys(pkg.scripts ?? {});
+        depEntries = Object.entries(pkg.dependencies ?? {}).map(([name, version]) => ({
+          name,
+          version,
+        }));
         manifestNote = `${pkg.name ?? "unnamed"} v${pkg.version ?? "?"}: ${deps.length} runtime deps, ${devDeps.length} dev deps. Scripts: ${scripts.join(", ") || "none"}.`;
       } catch {
         manifestNote = "package.json exists but could not be parsed.";
@@ -214,6 +221,14 @@ export const runLive = internalAction({
       detail: manifestNote,
       model: NEBIUS_FAST_MODEL, tokens: 0, status: "ok", at: at(),
     });
+
+    // Seed the Dependency intel table from the manifest. Research (registry
+    // latest, Tavily notes) happens on demand from the dashboard.
+    for (const d of depEntries.slice(0, 24)) {
+      await ctx.runMutation(internal.liveWrite.insertDependency, {
+        runId, userId, name: d.name, version: d.version,
+      });
+    }
 
     // ── Phase 4: Nemotron takeover plan ────────────────────────────────────
     const planRes = await callNebius(
@@ -253,6 +268,8 @@ export const runLive = internalAction({
       userId, runId, tokens: planRes.tokens,
       credits: Math.round((planRes.tokens / 1000) * 5) / 100, at: at(),
     });
+    totalTokens += planRes.tokens;
+    totalCredits += Math.round((planRes.tokens / 1000) * 5) / 100;
 
     // ── Phase 5: deployability probes ──────────────────────────────────────
     await ctx.runMutation(internal.liveWrite.patchRun, {
@@ -316,9 +333,168 @@ export const runLive = internalAction({
 
     await ctx.runMutation(internal.liveWrite.appendStep, {
       runId, userId, seq: seq++, title: "Deployability probes",
-      detail: `${probes.filter((p) => p.verdict === "verified").length} of ${probes.length} deployability claims verified against the live repository.`,
+      detail: `${probes.filter((p) => p.verdict === "verified").length} of ${probes.length} deployability claims verified against the real repository.`,
       model: NEBIUS_FAST_MODEL, tokens: 0, status: "verifying", at: at(),
     });
+
+    // ── Phase 5b: sandboxed execution ──────────────────────────────────────
+    // When a runner is attached the claim stops being static: a clean clone
+    // is installed and its declared test suite actually executed, with the
+    // real stdout and exit code captured. On failure Nemotron diagnoses and
+    // gets exactly one corrective retry. Without a runner the pack stays
+    // honestly static and says so.
+    const runnerConfigured = Boolean(process.env.RUNNER_URL && process.env.RUNNER_TOKEN);
+    let execLine = "Sandbox runner not configured; verification stayed static.";
+    let testVerified = true;
+    const clip = (s: string) => (s.length > 1400 ? `${s.slice(0, 1400)}\n… (truncated)` : s);
+
+    if (runnerConfigured) {
+      testVerified = false;
+      await ctx.runMutation(internal.liveWrite.appendStep, {
+        runId, userId, seq: seq++, title: "Test run",
+        detail: "Cloning a clean copy into the capped sandbox and running the declared test suite.",
+        model: NEBIUS_FAST_MODEL, tokens: 0, status: "verifying", at: at(),
+      });
+
+      const first = await ctx.runAction(internal.runner.execute, { repoUrl: run.repoUrl });
+
+      if (!first.ok) {
+        execLine = `Sandbox runner unavailable (${first.reason}): ${first.detail ?? "no detail"}. Verification stayed static.`;
+      } else if (first.clone && !first.clone.ok) {
+        await ctx.runMutation(internal.liveWrite.appendEvidence, {
+          runId, userId, seq: evidenceSeq++,
+          claim: "A clean clone of the repository succeeds.",
+          command: `git clone --depth 1 ${run.repoUrl}`,
+          output: clip(first.clone.output),
+          exitCode: first.clone.exitCode,
+          verdict: "unverified", at: at(),
+        });
+        execLine = `Clean clone failed in the sandbox (exit ${first.clone.exitCode}). The repo is likely private or the URL is wrong.`;
+      } else {
+        if (first.install && !first.install.ok) {
+          await ctx.runMutation(internal.liveWrite.appendEvidence, {
+            runId, userId, seq: evidenceSeq++,
+            claim: "Dependencies install from a clean clone.",
+            command: first.install.command,
+            output: clip(first.install.output),
+            exitCode: first.install.exitCode,
+            verdict: "unverified", at: at(),
+          });
+        }
+        if (first.test) {
+          const passed = first.test.ok && !first.test.timedOut;
+          await ctx.runMutation(internal.liveWrite.appendEvidence, {
+            runId, userId, seq: evidenceSeq++,
+            claim: "The declared test suite passes on a clean clone.",
+            command: first.test.command,
+            output: clip(first.test.output),
+            exitCode: first.test.exitCode,
+            verdict: passed ? "verified" : "unverified", at: at(),
+          });
+          testVerified = passed;
+        }
+
+        if (!testVerified && (first.test || first.install)) {
+          // ── diagnose, then exactly one corrective retry ─────────────────
+          const diag = await callNebius(
+            apiKey,
+            NEBIUS_FAST_MODEL,
+            [
+              {
+                role: "system",
+                content:
+                  'You diagnose a failing test run in a sandboxed clone. Reply with strict JSON only, no fences: {"diagnosis": "max 30 words", "fixCommand": "one single-line shell command to run inside the repo before retrying the tests"}. The command must be a single line and must not contain ; | ` $ > < or the words rm, sudo, curl, wget, chmod, chown, or any URL. Prefer npm/pkg commands that repair the test environment (pin a dev dependency, set a test script env var, add a missing flag).',
+              },
+              {
+                role: "user",
+                content: `Repo: ${run.repoUrl}\nInstall: ${
+                  first.install ? `exit ${first.install.exitCode}\n${first.install.output.slice(-600)}` : "ok"
+                }\nTest: ${
+                  first.test ? `exit ${first.test.exitCode}\n${first.test.output.slice(-800)}` : "did not run"
+                }\n\nDiagnose and propose the fix command.`,
+              },
+            ],
+            400,
+          );
+
+          let fixCommand: string | null = null;
+          let diagnosis = "Diagnosis unavailable.";
+          if (diag.ok) {
+            totalTokens += diag.tokens;
+            const diagCredits = Math.round((diag.tokens / 1000) * 5) / 100;
+            totalCredits += diagCredits;
+            await ctx.runMutation(internal.liveWrite.appendUsage, {
+              userId, runId, tokens: diag.tokens, credits: diagCredits, at: at(),
+            });
+            diagnosis = diag.text;
+            try {
+              const parsed = JSON.parse(diag.text.replace(/^```(?:json)?|```$/g, "").trim()) as {
+                diagnosis?: string;
+                fixCommand?: string;
+              };
+              diagnosis = parsed.diagnosis || diagnosis;
+              const candidate = (parsed.fixCommand || "").trim();
+              const banned = /[;|`$><]|\brm\b|\bsudo\b|\bcurl\b|\bwget\b|\bchmod\b|\bchown\b|https?:\/\//i;
+              if (candidate && candidate.length <= 220 && !banned.test(candidate)) {
+                fixCommand = candidate;
+              }
+            } catch {
+              diagnosis = `${diagnosis} (diagnosis was not valid JSON, no retry attempted)`;
+            }
+          } else {
+            diagnosis = `Diagnosis call failed: ${diag.error}`;
+          }
+
+          await ctx.runMutation(internal.liveWrite.appendStep, {
+            runId, userId, seq: seq++, title: "Fix cycle",
+            detail: fixCommand
+              ? `${diagnosis} Retrying with: \`${fixCommand}\`.`
+              : `${diagnosis} No safe corrective command proposed, stopping honestly.`,
+            model: NEBIUS_FAST_MODEL, tokens: diag.ok ? diag.tokens : 0,
+            status: fixCommand ? "retry" : "failed", at: at(),
+          });
+
+          if (fixCommand) {
+            await ctx.runMutation(internal.liveWrite.patchRun, {
+              runId, patch: { status: "fixing", fixAttempts: 1 },
+            });
+            const second = await ctx.runAction(internal.runner.execute, {
+              repoUrl: run.repoUrl,
+              fixCommand,
+            });
+            if (second.ok && second.test) {
+              const passed = second.test.ok && !second.test.timedOut;
+              await ctx.runMutation(internal.liveWrite.appendEvidence, {
+                runId, userId, seq: evidenceSeq++,
+                claim: "After one corrective fix, the declared test suite passes.",
+                command: `${fixCommand} && ${second.test.command}`,
+                output: clip(second.test.output),
+                exitCode: second.test.exitCode,
+                verdict: passed ? "verified" : "unverified", at: at(),
+              });
+              testVerified = passed;
+            }
+            execLine = testVerified
+              ? `Tests passed after one corrective fix (\`${fixCommand}\`).`
+              : `Tests still failing after one corrective fix (\`${fixCommand}\`).`;
+          } else {
+            execLine = "Tests failed and no safe corrective command was proposed.";
+          }
+        } else if (first.test) {
+          testVerified = true;
+          execLine = `Tests passed on a clean clone in ${first.test.durationMs} ms.`;
+        } else {
+          execLine = "No test script declared in the manifest; recorded as an unverified claim.";
+        }
+      }
+
+      await ctx.runMutation(internal.liveWrite.appendStep, {
+        runId, userId, seq: seq++, title: "Test result",
+        detail: execLine,
+        model: NEBIUS_FAST_MODEL, tokens: 0,
+        status: testVerified ? "ok" : "failed", at: at(),
+      });
+    }
 
     // ── Phase 6: Nemotron analysis ─────────────────────────────────────────
     const analysisRes = await callNebius(
@@ -334,7 +510,7 @@ export const runLive = internalAction({
           role: "user",
           content: `Repo ${meta.full_name}, idle ${daysIdle} days.\nProbe results:\n${probes
             .map((p) => `[${p.verdict}] ${p.claim} (${p.output})`)
-            .join("\n")}`,
+            .join("\n")}\nExecution: ${execLine}`,
         },
       ],
       500,
@@ -347,6 +523,8 @@ export const runLive = internalAction({
         userId, runId, tokens: analysisRes.tokens,
         credits: Math.round((analysisRes.tokens / 1000) * 5) / 100, at: at(),
       });
+      totalTokens += analysisRes.tokens;
+      totalCredits += Math.round((analysisRes.tokens / 1000) * 5) / 100;
     }
 
     await ctx.runMutation(internal.liveWrite.appendStep, {
@@ -358,18 +536,22 @@ export const runLive = internalAction({
 
     // ── Finalize ───────────────────────────────────────────────────────────
     const verified = probes.filter((p) => p.verdict === "verified").length;
-    const outcome = verified >= 4 ? "success" : verified >= 2 ? "partial" : "failed";
+    let outcome = verified >= 4 ? "success" : verified >= 2 ? "partial" : "failed";
+    if (runnerConfigured && !testVerified && outcome === "success") outcome = "partial";
     await ctx.runMutation(internal.liveWrite.patchRun, {
       runId,
       patch: {
         status: outcome,
         stepsDone: seq,
+        stepsTotal: seq,
         finishedAt: at(),
+        tokensUsed: totalTokens,
+        creditsUsed: Math.round(totalCredits * 100) / 100,
         health:
           outcome !== "failed"
             ? { status: "live" as const, url: `https://github.com/${owner}/${repo}`, latencyMs: 0, httpCode: repoRes.status }
             : undefined,
-        summary: `Live takeover of ${meta.full_name}. ${verified}/${probes.length} deployability claims verified against the real repository. ${analysisText}`,
+        summary: `Live takeover of ${meta.full_name}. ${verified}/${probes.length} deployability claims verified against the real repository. ${execLine} ${analysisText}`,
       },
     });
 

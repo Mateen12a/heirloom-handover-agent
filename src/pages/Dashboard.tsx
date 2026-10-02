@@ -228,8 +228,12 @@ export default function Dashboard() {
             <p className="mt-1 text-sm text-muted-foreground">
               {config === undefined
                 ? "Hand over an inherited repo. Watch the loop work. Read the receipts."
-                : config.liveMode
-                  ? "Live mode: runs execute against the real repository with Nebius Token Factory and NVIDIA Nemotron."
+                :                config.liveMode
+                  ? `Live mode: runs execute against the real repository with Nebius Token Factory and NVIDIA Nemotron.${
+                      config.runnerMode
+                        ? " Sandbox attached: clean clone, real test runs, one corrective retry."
+                        : " Static verification only: attach the sandbox runner to execute tests."
+                    }`
                   : "Demo mode: add NEBIUS_API_KEY in the Keys tab to switch to the live pipeline."}
             </p>
           </div>
@@ -260,7 +264,7 @@ export default function Dashboard() {
           />
           <StatCard
             icon={ShieldCheck}
-            label="Live staging URLs"
+            label="Repos probed live"
             value={stats ? String(stats.live) : "…"}
           />
           <StatCard
@@ -348,7 +352,7 @@ export default function Dashboard() {
                           className="inline-block size-1.5 rounded-full"
                           style={{ background: healthDotColor(run) }}
                         />
-                        {run.health ? run.health.url.replace(/^https?:\/\//, "").slice(0, 28) : "no staging yet"}
+                        {run.health ? run.health.url.replace(/^https?:\/\//, "").slice(0, 28) : "no probe yet"}
                       </span>
                       <span className="ml-auto shrink-0">{run.stepsDone}/{run.stepsTotal} steps</span>
                     </div>
@@ -375,8 +379,8 @@ export default function Dashboard() {
                 <p className="text-base font-medium">Nothing under the knife</p>
                 <p className="max-w-sm text-sm leading-6 text-muted-foreground">
                   Start your first takeover with the button above. The agent
-                  loop (intake, survey, boot attempts, fix cycles,
-                  verification) unfolds here in real time.
+                  loop (intake, survey, plan, probes, test run, analysis)
+                  unfolds here in real time.
                 </p>
               </div>
             ) : (
@@ -550,6 +554,31 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
   const deps = useQuery(api.runs.listDependencies, { runId }) ?? [];
   const removeRun = useMutation(api.runs.remove);
   const draftSummary = useAction(api.ai.draftSummary);
+  const researchDeps = useAction(api.deps.research);
+
+  const [researched, setResearched] = useState(false);
+  const [researching, setResearching] = useState(false);
+
+  async function handleResearch() {
+    if (!run || researched || researching) return;
+    if (!deps.some((d) => d.state === "pending" || !d.latest)) return;
+    setResearching(true);
+    try {
+      const res = await researchDeps({ runId });
+      setResearched(true);
+      if (res.researched > 0) {
+        toast.success(
+          `Researched ${res.researched} dependenc${res.researched === 1 ? "y" : "ies"}${
+            res.tavily ? " with Tavily" : " from the npm registry"
+          }.`,
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Dependency research failed");
+    } finally {
+      setResearching(false);
+    }
+  }
 
   const isLive =
     run?.status === "running" || run?.status === "fixing" || run?.status === "verifying";
@@ -655,7 +684,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                         run.health.status === "live" ? "var(--heirloom-accent)" : "var(--muted-foreground)",
                     }}
                   />
-                  {run.health.status === "live" ? "staging live" : "staging down"}
+                  {run.health.status === "live" ? "probe live" : "probe down"}
                 </Badge>
               </a>
             )}
@@ -709,7 +738,13 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="feed" className="gap-0">
+      <Tabs
+        defaultValue="feed"
+        className="gap-0"
+        onValueChange={(value) => {
+          if (value === "deps") void handleResearch();
+        }}
+      >
         <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
           <TabsTrigger value="feed">Agent feed</TabsTrigger>
           <TabsTrigger value="evidence">Evidence ledger</TabsTrigger>
@@ -843,11 +878,18 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
           <div className="hl-card overflow-hidden">
             <div className="flex items-center justify-between border-b border-border/70 px-5 py-3.5">
               <p className="text-sm font-medium">Dependency intel</p>
-              <p className="text-xs text-muted-foreground">researched live via Tavily</p>
+              <p className="text-xs text-muted-foreground">
+                {researching
+                  ? "researching with Tavily…"
+                  : deps.some((d) => d.state === "pending" || !d.latest)
+                    ? "npm registry + Tavily research"
+                    : "researched live via Tavily"}
+              </p>
             </div>
             {deps.length === 0 ? (
               <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-                Dependency research lands near the end of the loop.
+                No runtime dependencies declared in the manifest, or the run
+                has not reached manifest forensics yet.
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -871,11 +913,13 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                           <span
                             className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
                             style={
-                              d.state === "current"
-                                ? { background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }
-                                : d.state === "outdated"
-                                  ? { background: "var(--heirloom-amber-soft)", color: "var(--heirloom-amber)" }
-                                  : { background: "var(--heirloom-red-soft)", color: "var(--heirloom-red)" }
+                              d.state === "pending"
+                                ? { background: "var(--muted)", color: "var(--muted-foreground)" }
+                                : d.state === "current"
+                                  ? { background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }
+                                  : d.state === "outdated"
+                                    ? { background: "var(--heirloom-amber-soft)", color: "var(--heirloom-amber)" }
+                                    : { background: "var(--heirloom-red-soft)", color: "var(--heirloom-red)" }
                             }
                           >
                             {d.state}
@@ -986,7 +1030,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                       <ArrowRight className="size-5" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">Staging is live</p>
+                      <p className="text-sm font-semibold">Health probe live</p>
                       <p className="hl-terminal mt-0.5 text-xs text-muted-foreground">
                         {run.health.url} · {run.health.httpCode} · {run.health.latencyMs} ms
                       </p>
@@ -994,7 +1038,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                   </div>
                   <Button variant="outline" size="sm" asChild>
                     <a href={run.health.url} target="_blank" rel="noopener noreferrer">
-                      Open staging
+                      Open target
                     </a>
                   </Button>
                 </div>

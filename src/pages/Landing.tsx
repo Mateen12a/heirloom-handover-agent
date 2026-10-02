@@ -36,13 +36,12 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 const feedRows: { tag: string; text: string; state: "ok" | "retry" | "fail" | "run" }[] = [
-  { tag: "intake", text: "1,842 files · last commit 14 months ago", state: "ok" },
-  { tag: "survey", text: "3 workspaces · entry: server/index.js", state: "ok" },
-  { tag: "boot", text: "ECONNREFUSED 127.0.0.1:27017", state: "fail" },
-  { tag: "diagnose", text: "provision Mongo 6 · rewrite boot plan", state: "retry" },
-  { tag: "tests", text: "23 generated · 23 passing", state: "ok" },
-  { tag: "container", text: "187 MB image · non-root", state: "ok" },
-  { tag: "verify", text: "12/12 × HTTP 200 · mean 214 ms", state: "ok" },
+  { tag: "intake", text: "21 files · last commit 843 days ago", state: "ok" },
+  { tag: "survey", text: "7 JS · 1 TS · 2 package.json · 2 docs", state: "ok" },
+  { tag: "manifest", text: "clsx v2.1.1 · scripts: build, test", state: "ok" },
+  { tag: "plan", text: "7-step takeover plan · 369 tok", state: "ok" },
+  { tag: "probes", text: "4/6 deployability claims verified", state: "ok" },
+  { tag: "analysis", text: "risk: no env contract, no Dockerfile", state: "ok" },
 ];
 
 function FeedStateDot({ state }: { state: "ok" | "retry" | "fail" | "run" }) {
@@ -117,14 +116,15 @@ export default function Landing() {
                 transition={{ duration: 0.55, delay: 0.12 }}
                 className="mt-5 max-w-xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8"
               >
-                Point Heirloom at a codebase nobody understands. It reconstructs
-                the environment, writes the missing tests, containerises the
-                app, brings it up on staging, then ships a handover pack where
+                Point Heirloom at a codebase nobody understands. It clones
+                and surveys the repo, plans the takeover with Nemotron, runs
+                the real test suite in a capped sandbox, then ships a
+                handover pack where
                 <span className="text-foreground font-medium">
                   {" "}
                   every claim links to a command the agent actually ran
                 </span>
-                .
+                , with its output and exit code.
               </motion.p>
 
               <motion.div
@@ -153,8 +153,11 @@ export default function Landing() {
                 transition={{ duration: 0.55, delay: 0.26 }}
                 className="mt-5 text-xs text-muted-foreground"
               >
-                Runs on Nebius Token Factory · NVIDIA Nemotron Ultra + Nano · No
-                credit card, works on a free-tier allocation
+                Runs on Nebius Token Factory · NVIDIA Nemotron planning &amp;
+                fast loop ·{" "}
+                <a href="/sample" className="font-medium underline underline-offset-2" style={{ color: "var(--heirloom-accent-strong)" }}>
+                  Open a completed sample run
+                </a>
               </motion.p>
             </div>
 
@@ -169,7 +172,7 @@ export default function Landing() {
                 <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <GitBranch className="size-4 text-muted-foreground" />
-                    heirloom take over ghoststack/billing-dashboard
+                    heirloom take over lukeed/clsx
                   </div>
                   <Badge
                     variant="outline"
@@ -180,7 +183,7 @@ export default function Landing() {
                       background: "var(--heirloom-accent-soft)",
                     }}
                   >
-                    live
+                    real run
                   </Badge>
                 </div>
                 <div className="hl-terminal space-y-2.5 px-4 py-4 text-[12.5px] leading-5">
@@ -194,13 +197,22 @@ export default function Landing() {
                   <div className="flex items-center gap-2.5 border-t border-border/60 pt-3 text-muted-foreground">
                     <span className="w-20 shrink-0">evidence</span>
                     <span>
-                      claim #7 verified · cmd{" "}
-                      <span className="text-foreground/80">docker run -p 3000:3000 …</span> · exit 0
+                      claim #2 verified · cmd{" "}
+                      <span className="text-foreground/80">cat package.json | jq .scripts</span> · exit 0
                     </span>
                     <span className="hl-blink" style={{ color: "var(--heirloom-accent)" }}>
                       ▍
                     </span>
                   </div>
+                </div>
+                <div className="border-t border-border/70 px-4 py-3">
+                  <a
+                    href="/sample"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium transition-colors"
+                    style={{ color: "var(--heirloom-accent-strong)" }}
+                  >
+                    Open this completed run (no sign-in needed) →
+                  </a>
                 </div>
               </div>
             </motion.div>
@@ -214,7 +226,7 @@ export default function Landing() {
             <span className="hidden sm:inline" aria-hidden="true">·</span>
             <span>NVIDIA Nemotron for planning &amp; fast loop calls</span>
             <span className="hidden sm:inline" aria-hidden="true">·</span>
-            <span>Tavily-powered dependency research</span>
+            <span>Tavily dependency research: EOL &amp; advisories</span>
             <span className="hidden sm:inline" aria-hidden="true">·</span>
             <a
               href="/catalog"
@@ -236,7 +248,8 @@ export default function Landing() {
             <p className="mt-4 text-muted-foreground">
               The agent loop plans with a large reasoning model and executes
               with a fast one. It reads the repo before it touches it, and it
-              never ships a claim it did not verify in the sandbox.
+              never ships a claim without the command, output and exit code
+              behind it.
             </p>
           </motion.div>
 
@@ -246,25 +259,25 @@ export default function Landing() {
                 icon: ScanSearch,
                 step: "01",
                 title: "Take over the repo",
-                body: "Clone, survey the tree, map workspaces, routes and entry points. Boot scripts and Docker fragments are read, trusted by nothing.",
+                body: "Clone and index the tree, map entry points, scripts and routes. Manifest, lockfile and test files are read, trusted by nothing.",
               },
               {
                 icon: Boxes,
                 step: "02",
                 title: "Reconstruct the environment",
-                body: "Trace every process.env read, infer defaults, flag what only an operator can supply. The first boot attempt is expected to fail. That failure is evidence.",
+                body: "Parse dependencies, scripts and the env contract. Flag what only an operator can supply: a missing .env.example is recorded as a risk, not guessed at.",
               },
               {
                 icon: Gauge,
                 step: "03",
-                title: "Test, fix, containerise",
-                body: "Write the missing test suite, read the failures, patch, repeat until green. Then a multi-stage Dockerfile and a compose stack, as non-root.",
+                title: "Run it for real",
+                body: "Install and run the repo's own test suite in a capped, non-root sandbox. If it fails, Nemotron diagnoses and gets exactly one corrective retry. The failure output stays in the ledger.",
               },
               {
                 icon: FileCheck2,
                 step: "04",
                 title: "Verify & hand over",
-                body: "Probe the live health endpoint until it is boring. Then assemble the runbook, architecture map and risk register, each claim cross-linked to proof.",
+                body: "Probe the repository, license and deployability surface, then assemble the runbook, architecture map and risk register, each claim cross-linked to proof.",
               },
             ].map((item) => (
               <motion.div key={item.step} {...fadeUp} className="hl-card hl-card-hover p-6">
@@ -295,7 +308,7 @@ export default function Landing() {
               <p className="mt-4 leading-7 text-muted-foreground">
                 Any agent can generate a confident README. Heirloom&apos;s
                 handover pack is different by construction: a claim only enters
-                the pack if a command in the sandbox backs it. The command, its
+                the pack if a command ran and produced output. The command, its
                 output and its exit code ship alongside the claim.
               </p>
               <ul className="mt-6 space-y-3 text-sm leading-6">
@@ -314,17 +327,17 @@ export default function Landing() {
                 ))}
               </ul>
               <p className="mt-6 text-sm leading-6 text-muted-foreground">
-                When the agent exhausts its fix cycles, it stops and says so. The
-                risk register tells the next engineer exactly where to pick
-                up.
+                When the one fix cycle does not land, the agent stops and says
+                so instead of hiding the attempt. The risk register tells the
+                next engineer exactly where to pick up.
               </p>
             </motion.div>
 
             <motion.div {...fadeUp} className="hl-card overflow-hidden">
               <div className="border-b border-border/70 px-5 py-3.5">
-                <p className="text-sm font-medium">Evidence ledger · billing-dashboard</p>
+                <p className="text-sm font-medium">Sample ledger · billing-dashboard</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  6 entries · 4 verified · 1 unverified · 1 contradicted
+                  Example entries · 6 total · 4 verified · 1 unverified · 1 contradicted
                 </p>
               </div>
               <div className="divide-y divide-border/60">
@@ -446,10 +459,10 @@ export default function Landing() {
             </motion.div>
             <motion.div {...fadeUp} className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[
-                { value: "8 / 10", label: "repos reached live staging" },
-                { value: "9 min 40 s", label: "median takeover, intake to health check" },
-                { value: "41", label: "claims verified in-sandbox across the set" },
-                { value: "0", label: "unproven claims shipped in any pack" },
+                { value: "4 / 6", label: "deployability claims verified on the sample run (lukeed/clsx)" },
+                { value: "7.8 s", label: "intake to handover pack on that run" },
+                { value: "1,019", label: "Nemotron tokens for the whole live run" },
+                { value: "0", label: "claims shipped without a command and exit code" },
               ].map((stat) => (
                 <div key={stat.label} className="hl-card p-6">
                   <p className="hl-terminal text-3xl font-semibold tracking-tight">
@@ -460,10 +473,11 @@ export default function Landing() {
               ))}
             </motion.div>
             <motion.p {...fadeUp} className="mt-6 text-xs leading-6 text-muted-foreground">
-              Ten inherited MERN and Express repositories, one run each, fixed
-              model split. Full transcripts and per-repo results are published
-              in the public repository, including the two failed runs, with the
-              evidence that explains why.
+              Measured on one real run of lukeed/clsx, executed against the
+              live GitHub API and Nebius Token Factory on 2 October 2026, and
+              seeded into the app as the sample run anyone can open. The set
+              grows as we publish more runs, failed ones included, with the
+              evidence that explains why they failed.
             </motion.p>
           </div>
         </section>
@@ -486,12 +500,12 @@ export default function Landing() {
               {
                 name: "NVIDIA Nemotron",
                 role: "Ultra plans, Nano executes",
-                body: "nemotron-3-ultra handles repo survey, failure diagnosis and the handover narrative. nemotron-3-nano drives the fast loop: boot retries, test runs, health probes. The right model for each job keeps cost and latency low.",
+                body: "Nemotron 3 Ultra handles the takeover plan, failure diagnosis and the handover narrative. Nemotron 3 Nano drives the fast loop: manifest forensics, probes and feed updates. The right model for each job keeps cost and latency low.",
               },
               {
                 name: "Tavily",
                 role: "Dependency research",
-                body: "Outdated packages are looked up live: changelogs, advisories and upgrade paths land in the risk register, so the pack explains not just what is old but what it is safe to move.",
+                body: "The Dependency intel tab checks the npm registry for the real latest version, then has Tavily research end-of-life status, advisories and known issues, so the pack explains not just what is old but what it is safe to move.",
               },
             ].map((item) => (
               <motion.div key={item.name} {...fadeUp} className="hl-card hl-card-hover p-6">
@@ -564,8 +578,8 @@ export default function Landing() {
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
                 Pick a playbook from the catalog, hand over the repo, and watch
-                the loop work: intake, boot attempts, fix cycles, the health
-                check and the pack.
+                the loop work: intake, survey, plan, probes, the sandboxed test
+                run and the pack.
               </p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Button size="lg" className="gap-2 px-5" asChild>

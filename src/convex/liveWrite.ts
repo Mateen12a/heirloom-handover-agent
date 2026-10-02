@@ -36,6 +36,11 @@ export const appendStep = internalMutation({
   },
   handler: async (ctx, a) => {
     await ctx.db.insert("runSteps", a);
+    // Keep the workspace progress bar live while the pipeline runs.
+    const run = await ctx.db.get(a.runId);
+    if (run && run.stepsDone < a.seq + 1) {
+      await ctx.db.patch(a.runId, { stepsDone: a.seq + 1 });
+    }
   },
 });
 
@@ -99,13 +104,85 @@ export const startSmokeRun = internalMutation({
       modelFast: process.env.NEBIUS_FAST_MODEL || "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
       status: "queued",
       stepsDone: 0,
-      stepsTotal: 6,
+      // Six phases without the sandbox runner; the execution phase adds a
+      // start step, a possible fix cycle and a result step. Finalize trims
+      // stepsTotal to the exact count.
+      stepsTotal: process.env.RUNNER_URL ? 9 : 6,
       fixAttempts: 0,
       tokensUsed: 0,
       creditsUsed: 0,
       startedAt: Date.now(),
     });
     return { ok: true as const, runId, userId: user._id };
+  },
+});
+
+// Dependency rows written by the live pipeline (manifest forensics), later
+// enriched by the research action.
+export const insertDependency = internalMutation({
+  args: {
+    runId: v.id("runs"),
+    userId: v.id("users"),
+    name: v.string(),
+    version: v.string(),
+  },
+  handler: async (ctx, { runId, userId, name, version }) => {
+    await ctx.db.insert("dependencies", {
+      runId,
+      userId,
+      name,
+      version,
+      latest: "",
+      state: "pending",
+      note: "Not researched yet.",
+    });
+  },
+});
+
+export const patchDependency = internalMutation({
+  args: {
+    depId: v.id("dependencies"),
+    latest: v.string(),
+    state: v.union(
+      v.literal("pending"),
+      v.literal("current"),
+      v.literal("outdated"),
+      v.literal("vulnerable"),
+    ),
+    note: v.string(),
+  },
+  handler: async (ctx, { depId, latest, state, note }) => {
+    await ctx.db.patch(depId, { latest, state, note });
+  },
+});
+
+// Owner check used by client-invoked actions (research, draft summary).
+export const assertRunOwner = internalMutation({
+  args: { runId: v.id("runs"), userId: v.id("users") },
+  handler: async (ctx, { runId, userId }) => {
+    const run = await ctx.db.get(runId);
+    if (!run || run.userId !== userId) throw new Error("Run not found");
+  },
+});
+
+// CLI-only introspection for debugging stuck runs (internal, never client-callable).
+export const debugRuns = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const runs = await ctx.db.query("runs").collect();
+    return runs
+      .map((r) => ({
+        _id: r._id,
+        name: r.name,
+        repoUrl: r.repoUrl,
+        status: r.status,
+        stepsDone: r.stepsDone,
+        stepsTotal: r.stepsTotal,
+        userId: r.userId,
+        startedAt: r.startedAt,
+        isSample: r.isSample ?? false,
+      }))
+      .sort((a, b) => b.startedAt - a.startedAt);
   },
 });
 
