@@ -51,7 +51,7 @@ const mern: Scenario = {
   health: { status: "live", url: "https://staging-8f42.heirloom.app/api/health", latencyMs: 214, httpCode: 200 },
   outcome: "success",
   summary:
-    "Handover pack issued. 14 claims verified in-sandbox, 1 unverified (Stripe webhook secret), 2 dependency risks escalated. Staging build served 200 on /api/health.",
+    "Handover pack issued. 5 claims verified on this run, 1 unverified (Stripe webhook secret), 4 dependency risks escalated. Staging build served 200 on /api/health.",
   timeline: [
     { title: "Repo intake", detail: "Cloned takeohcorp/billing-dashboard. 1,842 files, last commit 14 months ago. No README, no CI config detected.", model: "fast", tokens: 940, status: "ok" },
     { title: "Static survey", detail: "Mapped 3 workspaces, 41 route files, 2 docker fragments (both broken). Identified entry point server/index.js via package.json main field.", model: "plan", tokens: 5210, status: "ok" },
@@ -62,7 +62,7 @@ const mern: Scenario = {
     { title: "Fix cycle", detail: "Applied patch to invoice-pdf rollover (UTC anchoring). Re-ran suite: 23/23 green.", model: "fast", tokens: 2210, status: "ok" },
     { title: "Containerisation", detail: "Wrote multi-stage Dockerfile (node:20-alpine, non-root user, 187 MB final image). Compose file wires Mongo 6 + app.", model: "fast", tokens: 3320, status: "ok" },
     { title: "Live verification", detail: "Booted stack, probed /api/health 12 times. 12/12 x HTTP 200, mean latency 214 ms.", model: "fast", tokens: 860, status: "verifying" },
-    { title: "Handover pack", detail: "Assembled runbook (8 procedures), architecture map, risk register. Every claim cross-linked to its evidence entry.", model: "plan", tokens: 7020, status: "ok" },
+    { title: "Handover pack", detail: "Runbook, architecture map and risk register assembled, every claim cross-linked to its evidence entry.", model: "plan", tokens: 7020, status: "ok" },
   ],
   evidence: [
     { claim: "App requires MongoDB 6+ and a reachable MONGODB_URI to boot.", command: "docker compose up -d && npm run dev", output: "[boot] mongoose.connect ECONNREFUSED 127.0.0.1:27017 (before provisioning) -> after provisioning: [boot] mongo connected in 412ms", exitCode: 0, verdict: "verified" },
@@ -87,7 +87,7 @@ const express: Scenario = {
   health: { status: "live", url: "https://staging-31ba.heirloom.app/healthz", latencyMs: 96, httpCode: 200 },
   outcome: "success",
   summary:
-    "Handover pack issued. 9 claims verified, 2 unverified (external SMTP relay, license for vendored font). Staging build served 200 on /healthz.",
+    "Handover pack issued. 3 claims verified on this run, 1 unverified (SMTP relay host), 3 dependency risks escalated. Staging build served 200 on /healthz.",
   timeline: [
     { title: "Repo intake", detail: "Cloned atlas-freight/dispatch-api. 96 files, no lockfile (npm-shrinkwrap only). Entry point unclear: both server.js and index.js exist.", model: "fast", tokens: 720, status: "ok" },
     { title: "Static survey", detail: "server.js is live (referenced by Dockerfile fragment and pm2 config). index.js is an abandoned duplicate; excluded from build.", model: "plan", tokens: 4410, status: "ok" },
@@ -119,7 +119,7 @@ const vite: Scenario = {
   health: { status: "live", url: "https://staging-c77d.heirloom.app/", latencyMs: 63, httpCode: 200 },
   outcome: "success",
   summary:
-    "Handover pack issued. 7 claims verified, 1 unverified (analytics key). Static build served 200 with asset integrity checks.",
+    "Handover pack issued. 2 claims verified on this run, 1 unverified (deleted deploy target), 3 dependency risks escalated. Static build served 200 with asset integrity checks.",
   timeline: [
     { title: "Repo intake", detail: "Cloned ledgerly/ledgerly-web. 312 files. vite.config.ts pinned to Vite 2, Node engines field says 14.", model: "fast", tokens: 640, status: "ok" },
     { title: "Static survey", detail: "SPA with hash routing. No backend. Deploy target in CI fragment points at an S3 bucket that no longer exists.", model: "plan", tokens: 3810, status: "ok" },
@@ -148,7 +148,7 @@ const chaos: Scenario = {
   health: { status: "down", url: "https://staging-0e11.heirloom.app/api/ping", latencyMs: 0, httpCode: 0 },
   outcome: "partial",
   summary:
-    "Agent stopped honestly after 4 failed fix cycles. 8 claims verified; app boots to 503. Risk register escalated with the exact blocking defects and evidence.",
+    "Agent stopped honestly after 4 failed fix cycles. 3 claims verified, 1 contradicted; app boots to 503. Risk register escalated with the exact blocking defects and evidence.",
   timeline: [
     { title: "Repo intake", detail: "Cloned ghoststack/pos-terminal. 2,204 files, git history truncated (shallow clone with no remote).", model: "fast", tokens: 810, status: "ok" },
     { title: "Static survey", detail: "Two package.json files disagree on the entry point. src/main.ts imports a file that does not exist.", model: "plan", tokens: 4870, status: "ok" },

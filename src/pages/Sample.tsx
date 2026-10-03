@@ -1,8 +1,9 @@
 import { useQuery } from "convex/react";
-import { ArrowRight, Check, CircleSlash, GitBranch, Loader2, ShieldCheck, X } from "lucide-react";
+import { ArrowRight, Check, CircleSlash, FileCheck2, GitBranch, Loader2, ShieldCheck, X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { HandoverPackView } from "@/components/HandoverPack";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 
@@ -211,14 +212,75 @@ export default function Sample() {
               </div>
             </section>
 
+            {/* Handover pack */}
+            <section className="mt-6">
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 className="flex items-center gap-2 text-sm font-semibold">
+                  <FileCheck2 className="size-4 text-muted-foreground" />
+                  Handover pack
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  assembled from this run's record · downloadable
+                </p>
+              </div>
+              <HandoverPackView
+                run={data.run}
+                steps={data.steps}
+                evidence={data.evidence}
+                deps={data.dependencies}
+              />
+            </section>
+
             {/* Dependency intel */}
             <section className="mt-6">
               <h2 className="mb-3 text-sm font-semibold">Dependency intel</h2>
-              <div className="hl-card px-5 py-8 text-center text-sm text-muted-foreground">
-                {data.dependencies.length === 0
-                  ? "clsx declares no runtime dependencies, so there is nothing to research for this repo. Your own runs fill this table from package.json and research it live with Tavily."
-                  : `${data.dependencies.length} dependencies recorded.`}
-              </div>
+              {data.dependencies.length === 0 ? (
+                <div className="hl-card px-5 py-8 text-center text-sm text-muted-foreground">
+                  This repo declares no dependencies in its manifest, so there is
+                  nothing to research here. Your own runs fill this table from package.json
+                  and research it live with Tavily.
+                </div>
+              ) : (
+                <div className="hl-card overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border/70 text-left text-xs text-muted-foreground">
+                        <th className="px-5 py-2.5 font-medium">Package</th>
+                        <th className="px-3 py-2.5 font-medium">Installed</th>
+                        <th className="px-3 py-2.5 font-medium">Latest</th>
+                        <th className="px-3 py-2.5 font-medium">State</th>
+                        <th className="px-5 py-2.5 font-medium">Note</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {data.dependencies.map((d) => (
+                        <tr key={d._id}>
+                          <td className="hl-terminal px-5 py-3 font-medium">{d.name}</td>
+                          <td className="hl-terminal px-3 py-3 text-muted-foreground">{d.version}</td>
+                          <td className="hl-terminal px-3 py-3 text-muted-foreground">{d.latest}</td>
+                          <td className="px-3 py-3">
+                            <span
+                              className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                              style={
+                                d.state === "pending"
+                                  ? { background: "var(--muted)", color: "var(--muted-foreground)" }
+                                  : d.state === "current"
+                                    ? { background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }
+                                    : d.state === "outdated"
+                                      ? { background: "var(--heirloom-amber-soft)", color: "var(--heirloom-amber)" }
+                                      : { background: "var(--heirloom-red-soft)", color: "var(--heirloom-red)" }
+                              }
+                            >
+                              {d.state}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-xs leading-5 text-muted-foreground">{d.note}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </section>
 
             {/* CTA */}
@@ -229,7 +291,9 @@ export default function Sample() {
                   style={{ color: "var(--heirloom-accent-strong)" }}
                 />
                 <div>
-                  <p className="text-sm font-semibold">This run cost 1,019 tokens. Yours starts the same way.</p>
+                  <p className="text-sm font-semibold">
+                    This run cost {data.run.tokensUsed.toLocaleString()} tokens. Yours starts the same way.
+                  </p>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
                     Sign in, point the agent at a repo you inherited, and watch the
                     loop produce its own receipts.

@@ -3,19 +3,18 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
   ArrowRight,
-  BookOpen,
   Check,
   CircleSlash,
+  Clock,
   FileCheck2,
   FlaskConical,
+  FolderSearch,
   Github,
   KeyRound,
   Layers,
   Loader2,
-  Map as MapIcon,
   Plus,
   ShieldCheck,
-  Sparkles,
   TriangleAlert,
   X,
 } from "lucide-react";
@@ -23,8 +22,10 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { findPlaybookByShape } from "@/lib/playbooks";
+import { userMessage } from "@/lib/errors";
 
 import { HeirloomLogo } from "@/components/HeirloomLogo";
+import { HandoverPackView, PackDraftButton } from "@/components/HandoverPack";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -109,7 +110,7 @@ function StatusBadge({ status }: { status: RunStatus }) {
       ) : status === "partial" || status === "failed" ? (
         <TriangleAlert className="size-3" />
       ) : (
-        <Sparkles className="size-3" />
+        <Clock className="size-3" />
       )}
       {label}
       {(status === "running" || status === "fixing" || status === "verifying") && (
@@ -238,7 +239,7 @@ export default function Dashboard() {
                 :                config.liveMode
                   ? `Live mode: runs execute against the real repository with Nebius Token Factory and NVIDIA Nemotron.${
                       config.runnerMode
-                        ? " Sandbox attached: clean clone, real test runs, one corrective retry."
+                        ? " Sandbox attached: clean clone, real test runs, bounded repair cycles, and a named wall when it cannot go green."
                         : " Static verification only: attach the sandbox runner to execute tests."
                     }`
                   : "Demo mode: add NEBIUS_API_KEY in the Keys tab to switch to the live pipeline."}
@@ -253,6 +254,7 @@ export default function Dashboard() {
                 : ""
             }
             scenarios={scenarios.map((s) => ({ key: s.key, label: s.label, blurb: s.blurb }))}
+            liveMode={Boolean(config?.liveMode)}
             onCreated={(id) => setSelectedId(id)}
           >
             <Button className="gap-2">
@@ -381,7 +383,7 @@ export default function Dashboard() {
                   className="flex size-12 items-center justify-center rounded-xl"
                   style={{ background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }}
                 >
-                  <Sparkles className="size-6" />
+                  <FolderSearch className="size-6" />
                 </div>
                 <p className="text-base font-medium">Nothing under the knife</p>
                 <p className="max-w-sm text-sm leading-6 text-muted-foreground">
@@ -438,6 +440,7 @@ function NewRunDialog({
   scenarios,
   onCreated,
   initialShape = "",
+  liveMode,
   children,
 }: {
   open: boolean;
@@ -445,6 +448,7 @@ function NewRunDialog({
   scenarios: { key: string; label: string; blurb: string }[];
   onCreated: (id: Id<"runs">) => void;
   initialShape?: string;
+  liveMode: boolean;
   children: React.ReactNode;
 }) {
   const create = useMutation(api.runs.create);
@@ -455,7 +459,9 @@ function NewRunDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!shape) {
+    // The live pipeline reads the real repository and does not branch on the
+    // shape; only the scripted demo playbooks do.
+    if (!liveMode && !shape) {
       toast.error("Pick the repo shape so the loop knows what to expect.");
       return;
     }
@@ -464,7 +470,7 @@ function NewRunDialog({
       const runId = await create({
         name: name.trim() || "Untitled takeover",
         repoUrl: repoUrl.trim() || "github.com/inherited/unknown",
-        shape,
+        shape: liveMode ? "" : shape,
       });
       toast.success("Takeover queued. The loop is starting.");
       onCreated(runId);
@@ -473,7 +479,7 @@ function NewRunDialog({
       setRepoUrl("");
       setShape("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not start the takeover");
+      toast.error(userMessage(err, "Could not start the takeover"));
     } finally {
       setSubmitting(false);
     }
@@ -511,27 +517,29 @@ function NewRunDialog({
               required
             />
           </div>
-          <div className="grid gap-2">
-            <Label>Repo shape</Label>
-            <Select value={shape} onValueChange={setShape}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="What kind of codebase is it?" />
-              </SelectTrigger>
-              <SelectContent>
-                {scenarios.map((s) => (
-                  <SelectItem key={s.key} value={s.key}>
-                    <span className="font-medium">{s.label}</span>
-                    <span className="ml-2 text-xs text-muted-foreground">{s.blurb}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs leading-5 text-muted-foreground">
-              The shape tunes the loop&apos;s expectations: what a boot failure
-              looks like, which fixes are on the table, and when to stop
-              honestly.
-            </p>
-          </div>
+          {!liveMode && (
+            <div className="grid gap-2">
+              <Label>Repo shape</Label>
+              <Select value={shape} onValueChange={setShape}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="What kind of codebase is it?" />
+                </SelectTrigger>
+                <SelectContent>
+                  {scenarios.map((s) => (
+                    <SelectItem key={s.key} value={s.key}>
+                      <span className="font-medium">{s.label}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{s.blurb}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs leading-5 text-muted-foreground">
+                The shape tunes the loop&apos;s expectations: what a boot failure
+                looks like, which fixes are on the table, and when to stop
+                honestly.
+              </p>
+            </div>
+          )}
           <DialogFooter className="gap-2">
             <Button
               type="button"
@@ -581,7 +589,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
         );
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Dependency research failed");
+      toast.error(userMessage(err, "Dependency research failed"));
     } finally {
       setResearching(false);
     }
@@ -591,7 +599,6 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
     run?.status === "running" || run?.status === "fixing" || run?.status === "verifying";
 
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [draftNote, setDraftNote] = useState<string | null>(null);
 
@@ -601,6 +608,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
     setDraftNote(null);
     try {
       const res = await draftSummary({
+        runId,
         runName: run.name,
         repoUrl: run.repoUrl,
         shape: run.shape,
@@ -613,11 +621,12 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
         })),
       });
       if (res.ok) {
-        setAiSummary(res.text);
-        toast.success(`Executive summary drafted by ${res.model.replace("nvidia/", "")}`);
+        toast.success(
+          `Executive summary drafted by ${res.model.replace("nvidia/", "")} and saved to the pack.`,
+        );
       } else if (res.reason === "missing_key") {
         setDraftNote(
-          "Add NEBIUS_API_KEY in the project's Keys tab to draft with Nemotron live. The evidence ledger below stays the source of truth either way.",
+          "Add NEBIUS_API_KEY in the project's Keys tab to draft with Nemotron live. The evidence ledger stays the source of truth either way.",
         );
       } else {
         setDraftNote(
@@ -885,7 +894,9 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                   ? "researching with Tavily…"
                   : deps.some((d) => d.state === "pending" || !d.latest)
                     ? "npm registry + Tavily research"
-                    : "researched live via Tavily"}
+                    : deps.some((d) => /tavily research not configured/i.test(d.note))
+                      ? "npm registry only · Tavily not configured"
+                      : "researched live via Tavily"}
               </p>
             </div>
             {deps.length === 0 ? (
@@ -939,88 +950,27 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
 
         {/* Handover pack */}
         <TabsContent value="pack" className="mt-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="hl-card p-5 sm:col-span-2">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="flex size-9 items-center justify-center rounded-lg"
-                    style={{ background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }}
-                  >
-                    <Sparkles className="size-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">Executive summary</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Drafted live by Nemotron, strictly from the evidence ledger.
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
+          <div className="flex min-w-0 flex-col gap-4">
+            <HandoverPackView
+              run={run}
+              steps={sortedSteps}
+              evidence={evidence}
+              deps={deps}
+              executiveSlot={
+                <PackDraftButton
                   onClick={handleDraft}
-                  disabled={drafting || evidence.length === 0}
-                >
-                  {drafting ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-                  {aiSummary ? "Redraft" : "Draft with Nemotron"}
-                </Button>
-              </div>
-              {aiSummary && (
-                <p className="mt-4 rounded-lg border border-border/70 bg-muted/50 px-4 py-3 text-sm leading-6 text-foreground/90">
-                  {aiSummary}
-                </p>
-              )}
-              {draftNote && (
-                <p
-                  className="mt-3 text-xs leading-5"
-                  style={{ color: "var(--heirloom-amber)" }}
-                >
-                  {draftNote}
-                </p>
-              )}
-            </div>
-            <PackCard
-              icon={BookOpen}
-              title="Runbook"
-              done={run.status !== "queued" && run.status !== "running" ? true : run.stepsDone >= 6}
-              body={
-                run.status === "success" || run.status === "partial" || run.status === "failed"
-                  ? "8 procedures written against the live run: boot, seed, migrate, roll back, rotate secrets, scale, back up, restore."
-                  : "The runbook is assembled once verification completes. Procedures come from what the agent actually did, not the docs."
+                  busy={drafting}
+                  hasNarrative={Boolean(run.packNarrative)}
+                  disabled={evidence.length === 0}
+                />
               }
+              emptyHint="The pack assembles from the run's own record: procedures from the survey, risks from the ledger. Start a takeover to fill it."
             />
-            <PackCard
-              icon={MapIcon}
-              title="Architecture map"
-              done={run.stepsDone >= 2}
-              body={
-                run.stepsDone >= 2
-                  ? "Workspaces, entry points, route table and service graph drawn from the surveyed tree."
-                  : "Drawn during the static survey, early in the loop."
-              }
-            />
-            <PackCard
-              icon={TriangleAlert}
-              title="Risk register"
-              done={Boolean(run.summary)}
-              body={
-                run.summary
-                  ? "Ranked defects and unknowns, each with a repro command and the exact output that proved it."
-                  : "Filled at the end of the run, including the things the agent could not verify."
-              }
-            />
-            <PackCard
-              icon={ShieldCheck}
-              title="Evidence ledger"
-              done={evidence.length > 0}
-              body={
-                evidence.length > 0
-                  ? `${evidence.length} claims on record. Commands, outputs, exit codes.`
-                  : "The receipt book fills as the loop works."
-              }
-            />
+            {draftNote && (
+              <p className="text-xs leading-5" style={{ color: "var(--heirloom-amber)" }}>
+                {draftNote}
+              </p>
+            )}
             {run.health?.status === "live" && (
               <div className="hl-card p-5 sm:col-span-2">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1073,41 +1023,3 @@ function RunMeta({
   );
 }
 
-function PackCard({
-  icon: Icon,
-  title,
-  body,
-  done,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  body: string;
-  done: boolean;
-}) {
-  return (
-    <div className="hl-card p-5">
-      <div className="flex items-center justify-between">
-        <div
-          className="flex size-9 items-center justify-center rounded-lg"
-          style={{ background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }}
-        >
-          <Icon className="size-5" />
-        </div>
-        {done ? (
-          <span
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
-            style={{ background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }}
-          >
-            <Check className="size-3" /> ready
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            <Loader2 className="size-3 animate-spin" /> pending
-          </span>
-        )}
-      </div>
-      <p className="mt-4 text-sm font-semibold">{title}</p>
-      <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{body}</p>
-    </div>
-  );
-}

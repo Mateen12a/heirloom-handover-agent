@@ -61,6 +61,28 @@ async function tavilyResearch(
   }
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// A search result only counts as research on this package when it is actually
+// about it: "mocha end of life" must not surface a Spring Boot article just
+// because the article is about end of life. Titles and URLs are the strong
+// signal; body text only counts when it also carries a security/EOL keyword.
+function relevantResults(results: TavilyResult[], name: string): TavilyResult[] {
+  const bare = name.includes("/") ? name.slice(name.indexOf("/") + 1) : name;
+  const re = new RegExp(`(^|[^\\w@/-])${escapeRegExp(bare)}([^\\w-]|$)`, "i");
+  const strong = results.filter((r) => re.test(`${r.title ?? ""} ${r.url ?? ""}`));
+  if (strong.length > 0) return strong;
+  return results.filter(
+    (r) =>
+      re.test(r.content ?? "") &&
+      /(cve-|advisory|vulnerab|security|end of life|eol|deprecated)/i.test(
+        `${r.title ?? ""} ${r.content ?? ""}`,
+      ),
+  );
+}
+
 function pickNote(results: TavilyResult[]): string | null {
   const scored = [...results].sort((a, b) => {
     const text = `${a.title ?? ""} ${a.content ?? ""}`.toLowerCase();
@@ -118,7 +140,7 @@ async function researchDeps(
           tavilyKey,
           `${dep.name} ${installed} end of life security advisory known issues`,
         );
-        const tavilyNote = pickNote(results);
+        const tavilyNote = pickNote(relevantResults(results, dep.name));
         if (tavilyNote) {
           note = `${tavilyNote} · ${note}`;
           tavilyUsed = true;

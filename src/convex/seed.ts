@@ -60,6 +60,12 @@ export const sample = internalMutation({
       startedAt: source.startedAt,
       finishedAt: source.finishedAt,
       summary: source.summary,
+      survey: source.survey,
+      // The cross-phase notes and the repair-loop outcome are part of the
+      // handover story, so the sample must carry them verbatim too.
+      notes: source.notes,
+      repair: source.repair,
+      packNarrative: source.packNarrative,
       isSample: true,
     });
 
@@ -90,8 +96,11 @@ export const sample = internalMutation({
       .withIndex("by_run", (q) => q.eq("runId", sourceRunId))
       .collect();
     for (const row of sourceDeps) {
-      const { _id, ...rest } = row;
+      // _creationTime is off-limits on insert; copying it made the whole seed
+      // command fail for any source run that had dependency rows.
+      const { _id, _creationTime, ...rest } = row;
       void _id;
+      void _creationTime;
       await ctx.db.insert("dependencies", { ...rest, runId, userId: owner._id });
     }
 

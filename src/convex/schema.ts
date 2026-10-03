@@ -67,6 +67,80 @@ const schema = defineSchema(
       startedAt: v.number(),
       finishedAt: v.optional(v.number()),
       summary: v.optional(v.string()),
+      // Structured output of the static survey: the facts the handover pack's
+      // architecture map and runbook are assembled from.
+      survey: v.optional(
+        v.object({
+          language: v.string(),
+          files: v.number(),
+          manifest: v.optional(v.string()),
+          ecosystem: v.string(),
+          lockfile: v.optional(v.string()),
+          packageManager: v.optional(v.string()),
+          entryPoints: v.array(v.string()),
+          workspaces: v.array(v.string()),
+          workspaceManifests: v.number(),
+          scripts: v.array(v.string()),
+          engines: v.optional(v.string()),
+          containerAssets: v.number(),
+          testFiles: v.number(),
+          envTemplates: v.number(),
+          docs: v.number(),
+          // How the sandbox should install, build and test this repo: derived
+          // from the lockfile, CI workflows and package.json scripts, so a
+          // monorepo or non-default toolchain executes the way its own CI
+          // would instead of a hardcoded `npm test`.
+          strategy: v.optional(
+            v.object({
+              label: v.string(),
+              source: v.string(),
+              install: v.array(v.string()),
+              build: v.optional(v.array(v.string())),
+              tests: v.array(
+                v.object({ cwd: v.string(), argv: v.array(v.string()) }),
+              ),
+            }),
+          ),
+        }),
+      ),
+      // Cross-phase handoff: notes written during intake/survey that later
+      // scheduled phases (probes, repair, analysis) need without re-fetching.
+      notes: v.optional(
+        v.object({
+          census: v.string(),
+          manifest: v.string(),
+          repo: v.string(),
+          branch: v.string(),
+          idleDays: v.number(),
+          license: v.string(),
+          reach: v.string(),
+          httpCode: v.number(),
+          declaresTest: v.boolean(),
+          probeVerified: v.optional(v.number()),
+          probeTotal: v.optional(v.number()),
+        }),
+      ),
+      // Terminal state of the sandboxed repair loop. Recorded so the summary,
+      // the pack and the outcome all agree on how execution ended: green, a
+      // wall the model named, an error, or nothing to execute.
+      repair: v.optional(
+        v.object({
+          state: v.union(
+            v.literal("static"),
+            v.literal("green"),
+            v.literal("no-tests"),
+            v.literal("error"),
+            v.literal("wall"),
+          ),
+          cycle: v.number(),
+          commands: v.array(v.string()),
+          execLine: v.string(),
+          wall: v.optional(v.string()),
+        }),
+      ),
+      // Nemotron's pack-ready executive summary, written strictly from the
+      // evidence ledger and persisted so it ships with the pack.
+      packNarrative: v.optional(v.string()),
       // The one seeded run anyone can open without signing in.
       isSample: v.optional(v.boolean()),
     })

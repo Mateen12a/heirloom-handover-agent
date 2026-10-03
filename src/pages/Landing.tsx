@@ -35,13 +35,17 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Every row below is copied from the seeded sample run
+// (jonschlinkert/is-number), so the hero feed can be checked against /sample.
 const feedRows: { tag: string; text: string; state: "ok" | "retry" | "fail" | "run" }[] = [
-  { tag: "intake", text: "21 files · last commit 843 days ago", state: "ok" },
-  { tag: "survey", text: "7 JS · 1 TS · 2 package.json · 2 docs", state: "ok" },
-  { tag: "manifest", text: "clsx v2.1.1 · scripts: build, test", state: "ok" },
-  { tag: "plan", text: "7-step takeover plan · 369 tok", state: "ok" },
-  { tag: "probes", text: "4/6 deployability claims verified", state: "ok" },
-  { tag: "analysis", text: "risk: no env contract, no Dockerfile", state: "ok" },
+  { tag: "intake", text: "15 files · last commit 1,478 days ago", state: "ok" },
+  { tag: "survey", text: "4 JS · 0 TS · 1 package.json · 3 docs", state: "ok" },
+  { tag: "manifest", text: "is-number v7.0.0 · scripts: test", state: "ok" },
+  { tag: "strategy", text: "npm install → npm run test · from scripts", state: "ok" },
+  { tag: "plan", text: "7-step takeover plan · 888 tok", state: "ok" },
+  { tag: "probes", text: "7/10 deployability claims verified · 3 honestly unverified", state: "ok" },
+  { tag: "tests", text: "npm run test passed on a clean clone · exit 0", state: "ok" },
+  { tag: "analysis", text: "risk: no CI, no container assets, no env template", state: "ok" },
 ];
 
 function FeedStateDot({ state }: { state: "ok" | "retry" | "fail" | "run" }) {
@@ -172,7 +176,7 @@ export default function Landing() {
                 <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <GitBranch className="size-4 text-muted-foreground" />
-                    heirloom take over lukeed/clsx
+                    heirloom take over jonschlinkert/is-number
                   </div>
                   <Badge
                     variant="outline"
@@ -259,7 +263,7 @@ export default function Landing() {
                 icon: ScanSearch,
                 step: "01",
                 title: "Take over the repo",
-                body: "Clone and index the tree, map entry points, scripts and routes. Manifest, lockfile and test files are read, trusted by nothing.",
+                body: "Clone and index the tree: file census, entry points, scripts, lockfile, workspaces. The manifest and every test file are read, trusted by nothing.",
               },
               {
                 icon: Boxes,
@@ -271,7 +275,7 @@ export default function Landing() {
                 icon: Gauge,
                 step: "03",
                 title: "Run it for real",
-                body: "Install and run the repo's own test suite in a capped, non-root sandbox. If it fails, Nemotron diagnoses and gets exactly one corrective retry. The failure output stays in the ledger.",
+                body: "Install and run the repo's own test suite in a capped, non-root sandbox. If it fails, Nemotron diagnoses and runs allowlisted corrective cycles on the same clone; if it still cannot go green, the run stops at a wall it names. The failure output stays in the ledger.",
               },
               {
                 icon: FileCheck2,
@@ -459,9 +463,9 @@ export default function Landing() {
             </motion.div>
             <motion.div {...fadeUp} className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[
-                { value: "4 / 6", label: "deployability claims verified on the sample run (lukeed/clsx)" },
-                { value: "7.8 s", label: "intake to handover pack on that run" },
-                { value: "1,019", label: "Nemotron tokens for the whole live run" },
+                { value: "7 / 10", label: "deployability claims verified on the sample run (jonschlinkert/is-number), the three misses left unverified" },
+                { value: "192 s", label: "intake to handover pack on that run" },
+                { value: "1,784", label: "Nemotron tokens for the whole live run" },
                 { value: "0", label: "claims shipped without a command and exit code" },
               ].map((stat) => (
                 <div key={stat.label} className="hl-card p-6">
@@ -473,11 +477,11 @@ export default function Landing() {
               ))}
             </motion.div>
             <motion.p {...fadeUp} className="mt-6 text-xs leading-6 text-muted-foreground">
-              Measured on one real run of lukeed/clsx, executed against the
-              live GitHub API and Nebius Token Factory on 2 October 2026, and
-              seeded into the app as the sample run anyone can open. The set
-              grows as we publish more runs, failed ones included, with the
-              evidence that explains why they failed.
+              Measured on one real run of jonschlinkert/is-number, executed
+              against the live GitHub API and Nebius Token Factory on
+              2 October 2026, and seeded into the app as the sample run anyone
+              can open. The set grows as we publish more runs, failed ones
+              included, with the evidence that explains why they failed.
             </motion.p>
           </div>
         </section>
@@ -500,12 +504,22 @@ export default function Landing() {
               {
                 name: "NVIDIA Nemotron",
                 role: "Ultra plans, Nano executes",
-                body: "Nemotron 3 Ultra handles the takeover plan, failure diagnosis and the handover narrative. Nemotron 3 Nano drives the fast loop: manifest forensics, probes and feed updates. The right model for each job keeps cost and latency low.",
+                body: "nvidia/Nemotron-3-Ultra-550b-a55b handles the takeover plan, failure diagnosis and the handover narrative. nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B drives the fast loop: manifest forensics, probes and feed updates.",
               },
               {
                 name: "Tavily",
                 role: "Dependency research",
                 body: "The Dependency intel tab checks the npm registry for the real latest version, then has Tavily research end-of-life status, advisories and known issues, so the pack explains not just what is old but what it is safe to move.",
+              },
+              {
+                name: "Convex",
+                role: "State and scheduling",
+                body: "The pipeline is a scheduled Convex action: every phase writes through internal mutations, so the feed, ledger, usage meter and pack stay live for anyone watching. Auth, per-account caps and the run store live here too.",
+              },
+              {
+                name: "Docker",
+                role: "Sandboxed execution",
+                body: "The runner clones, installs and tests inside a capped non-root container: read-only root filesystem, CPU, memory and pid limits, per-phase hard timeouts, and no secrets passed in. Failures and their exit codes stay in the ledger.",
               },
             ].map((item) => (
               <motion.div key={item.name} {...fadeUp} className="hl-card hl-card-hover p-6">

@@ -70,15 +70,15 @@ export const advance = internalMutation({
               : "running",
     });
 
-    // Emit this step's evidence row, distributed across the run so the
-    // ledger fills alongside the timeline rather than all up front.
+    // Emit this step's evidence rows, distributed across the run so the ledger
+    // fills alongside the timeline rather than all up front. Each row lands
+    // exactly once: the previous index-scaling emitted early rows twice and
+    // silently dropped the unverified / contradicted rows at the end, which
+    // made the demo ledger disagree with its own run summary.
     if (scenario.evidence.length > 0) {
-      const eIdx = Math.min(
-        scenario.evidence.length - 1,
-        Math.floor((seq / steps.length) * scenario.evidence.length),
-      );
-      // One entry per step until the ledger is exhausted, then stop.
-      if (seq < scenario.evidence.length) {
+      const from = Math.floor((seq * scenario.evidence.length) / steps.length);
+      const to = Math.floor(((seq + 1) * scenario.evidence.length) / steps.length);
+      for (let eIdx = from; eIdx < to; eIdx++) {
         const e = scenario.evidence[eIdx];
         await ctx.db.insert("evidence", {
           runId,

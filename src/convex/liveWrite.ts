@@ -17,6 +17,19 @@ export const patchRun = internalMutation({
   },
 });
 
+// Evidence rows are appended across several scheduled phases, so each phase
+// asks for the current count instead of keeping a local counter.
+export const countEvidence = internalQuery({
+  args: { runId: v.id("runs") },
+  handler: async (ctx, { runId }) =>
+    (
+      await ctx.db
+        .query("evidence")
+        .withIndex("by_run", (q) => q.eq("runId", runId))
+        .collect()
+    ).length,
+});
+
 export const appendStep = internalMutation({
   args: {
     runId: v.id("runs"),
@@ -41,6 +54,29 @@ export const appendStep = internalMutation({
     if (run && run.stepsDone < a.seq + 1) {
       await ctx.db.patch(a.runId, { stepsDone: a.seq + 1 });
     }
+  },
+});
+
+// The live pipeline appends a couple of long-running steps early (so the feed
+// shows progress while the sandbox works), then flips them to their final
+// status once the work finishes.
+export const finishStep = internalMutation({
+  args: {
+    runId: v.id("runs"),
+    seq: v.number(),
+    status: v.union(
+      v.literal("ok"),
+      v.literal("retry"),
+      v.literal("failed"),
+    ),
+  },
+  handler: async (ctx, { runId, seq, status }) => {
+    const steps = await ctx.db
+      .query("runSteps")
+      .withIndex("by_run", (q) => q.eq("runId", runId))
+      .collect();
+    const step = steps.find((s) => s.seq === seq);
+    if (step) await ctx.db.patch(step._id, { status });
   },
 });
 
@@ -105,9 +141,9 @@ export const startSmokeRun = internalMutation({
       status: "queued",
       stepsDone: 0,
       // Six phases without the sandbox runner; the execution phase adds a
-      // start step, a possible fix cycle and a result step. Finalize trims
-      // stepsTotal to the exact count.
-      stepsTotal: process.env.RUNNER_URL ? 9 : 6,
+      // strategy step, a start/result pair and one step per repair cycle (up
+      // to four). Finalize trims stepsTotal to the exact count.
+      stepsTotal: process.env.RUNNER_URL ? 13 : 6,
       fixAttempts: 0,
       tokensUsed: 0,
       creditsUsed: 0,
@@ -165,6 +201,17 @@ export const patchDependency = internalMutation({
   },
 });
 
+// Stores the Nemotron-written executive summary on the run, so the handover
+// pack is complete for every reader of that run (and for the public sample).
+export const saveNarrative = internalMutation({
+  args: { runId: v.id("runs"), text: v.string() },
+  handler: async (ctx, { runId, text }) => {
+    const run = await ctx.db.get(runId);
+    if (!run) return;
+    await ctx.db.patch(runId, { packNarrative: text });
+  },
+});
+
 // Owner check used by client-invoked actions (research, draft summary).
 export const assertRunOwner = internalMutation({
   args: { runId: v.id("runs"), userId: v.id("users") },
@@ -193,7 +240,7 @@ export const resetRun = internalMutation({
     await ctx.db.patch(runId, {
       status: "queued",
       stepsDone: 0,
-      stepsTotal: 9,
+      stepsTotal: 13,
       fixAttempts: 0,
       tokensUsed: 0,
       creditsUsed: 0,

@@ -17,10 +17,19 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { extractFixCommand } from "./fixCommand";
+import { ciCommandsFrom, resolveStrategy, type RunStrategy } from "./strategy";
 
 const NEBIUS_BASE = "https://api.tokenfactory.nebius.com/v1";
 const NEBIUS_PLAN_MODEL = process.env.NEBIUS_PLAN_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b";
 const NEBIUS_FAST_MODEL = process.env.NEBIUS_FAST_MODEL || "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B";
+
+// The repair loop is bounded: after this many diagnosed cycles the run stops
+// at a wall the model named, instead of looping forever or claiming green.
+const MAX_FIX_CYCLES = 4;
+// Cycles only start while this much of the action's budget remains, so the
+// diagnosis call and the final analysis always have room to run.
+const CYCLE_WINDOW_MS = 420_000;
 
 // ── safety rails ───────────────────────────────────────────────────────────
 // A reasoning model asked for a "takeover plan" was observed describing how
@@ -37,11 +46,9 @@ const PLAN_SYSTEM_PROMPT =
 const UNSAFE_RE =
   /(malicious|payload|exploit|backdoor|inject|malware|trojan|ransom|keylog|reverse shell|gain code execution|gain control|steal|exfiltrat|credential harvest|privilege escalation|bypass (the )?(auth|security)|disable (the )?(auth|security))/i;
 
-// Model-authored corrective commands run inside the sandbox, so the
-// allowlist blocks shell metacharacters, VCS publishing, package publishing
-// and any attack-flavoured vocabulary.
-const BANNED_FIX_RE =
-  /[;|`$><]|\brm\b|\bsudo\b|\bcurl\b|\bwget\b|\bchmod\b|\bchown\b|\bnc\b|\beval\b|\bkill\b|\bdd\b|\bmkfs\b|git\s+(push|commit|reset|clean)\b|npm\s+publish\b|\bpush\b|https?:\/\/|payload|exploit|malicious|backdoor|inject|malware|trojan|reverse shell/i;
+// Model-authored corrective commands are screened in ./fixCommand (argv
+// allowlist, no shell metacharacters, no absolute paths, no traversal) and
+// re-screened by the runner, which never trusts this client.
 
 type FetchOk = { ok: true; status: number; body: unknown };
 type FetchFail = { ok: false; status: number; error: string };
@@ -84,7 +91,11 @@ async function callNebius(
   model: string,
   messages: { role: "system" | "user"; content: string }[],
   maxTokens: number,
-): Promise<{ ok: true; text: string; tokens: number } | { ok: false; error: string }> {
+  attempt = 0,
+): Promise<
+  | { ok: true; text: string; tokens: number; truncated: boolean }
+  | { ok: false; error: string }
+> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60_000);
   try {
@@ -102,12 +113,29 @@ async function callNebius(
       return { ok: false, error: `Nebius API ${res.status}: ${detail}` };
     }
     const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
       usage?: { total_tokens?: number };
     };
     const text = data.choices?.[0]?.message?.content?.trim() ?? "";
     if (!text) return { ok: false, error: "Nebius returned an empty completion" };
-    return { ok: true, text, tokens: data.usage?.total_tokens ?? 0 };
+    const finishReason = data.choices?.[0]?.finish_reason;
+    // Nemotron bills its thinking against the token budget, so a long prompt
+    // can leave the visible answer cut off mid-sentence. Retry once with
+    // double the budget before anyone sees a truncated paragraph.
+    if (finishReason === "length" && attempt < 1) {
+      const retry = await callNebius(apiKey, model, messages, maxTokens * 2, attempt + 1);
+      // Keep the usage ledger honest: both attempts were billed.
+      if (retry.ok) {
+        return { ...retry, tokens: retry.tokens + (data.usage?.total_tokens ?? 0) };
+      }
+      return retry;
+    }
+    return {
+      ok: true,
+      text,
+      tokens: data.usage?.total_tokens ?? 0,
+      truncated: finishReason === "length",
+    };
   } catch (err) {
     return {
       ok: false,
@@ -138,6 +166,7 @@ export const runLive = internalAction({
     }
 
     const at = () => Date.now();
+    const pipelineStarted = at();
     let seq = 0;
     let totalTokens = 0;
     let totalCredits = 0;
@@ -199,8 +228,20 @@ export const runLive = internalAction({
     const files = tree.filter((t) => t.type === "blob");
     const count = (re: RegExp) => files.filter((f) => re.test(f.path)).length;
 
+    // Test files by convention, not by a single naming scheme: .test./.spec.
+    // names, __tests__/test/tests directories, and plain test.js style entry
+    // files (is-number v7 ships `test.js` at the root, for example).
+    const TEST_JS_RE =
+      /\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(__tests__|tests?|specs?)\/[^/]+\.[cm]?[jt]sx?$|(^|\/)(test|tests|spec|specs)\.[cm]?[jt]sx?$/;
+    const TEST_PY_RE = /(^|\/)(test_[^/]*\.py|[^/]*_test\.py)$|(^|\/)(test|tests)\/[^/]+\.py$/;
+
     // Inherited repos are not always npm projects, so the census counts the
-    // ecosystems we can actually inspect and execute.
+    // ecosystems we can actually inspect and execute. The test counts are
+    // computed once here so the ledger, the survey and the pack can never
+    // disagree.
+    const jsTestFiles = count(TEST_JS_RE);
+    const pyTestFiles = count(TEST_PY_RE);
+    const testFiles = jsTestFiles + pyTestFiles;
     const censusNote = [
       `${files.length} files`,
       `${count(/\.jsx?$/)} JS/JSX`,
@@ -211,10 +252,15 @@ export const runLive = internalAction({
       `${count(/package\.json$/)} package.json`,
       `${count(/Dockerfile|Containerfile|compose\.ya?ml/i)} container assets`,
       `${count(/\.env\.(example|sample|template)/)} env templates`,
-      `${count(/\.test\.|\.spec\.|test_[^/]*\.py|[^/]*_test\.py/)} test files`,
+      testFiles === 1 ? "1 test file" : `${testFiles} test files`,
       `${count(/\.md$/)} docs`,
     ].join(", ");
     const sourceFiles = count(/\.(jsx?|tsx?|py|rs|go|rb|php|java|kt|cs)$/);
+    const envDocCount = count(/\.env\.(example|sample|template)|(^|\/)env\.(example|sample)/);
+    const containerAssets = count(
+      /Dockerfile|Containerfile|(^|\/)(docker-)?compose\.ya?ml$|devcontainer\.json/i,
+    );
+    const docCount = count(/\.md$/);
     const languageGuess =
       sourceFiles === 0
         ? `no source files detected in the tree (GitHub labels it ${meta.language ?? "unknown"})`
@@ -254,13 +300,55 @@ export const runLive = internalAction({
     ).find((m) => rootFiles.has(m.name));
     const ecosystem = manifest?.ecosystem ?? "none detected";
 
+    // Manifest files can live in a subdirectory (a `web/` app whose root is a
+    // deployment wrapper, for example). Record them so "no root manifest" is
+    // never read as "nothing installable" when the tree says otherwise.
+    const MANIFEST_NAMES = [
+      "package.json",
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "Pipfile",
+      "Cargo.toml",
+      "go.mod",
+      "composer.json",
+      "Gemfile",
+      "pom.xml",
+      "build.gradle",
+    ] as const;
+    const nestedManifestFiles = files
+      .filter(
+        (f) =>
+          f.path.includes("/") &&
+          MANIFEST_NAMES.some((n) => f.path.endsWith(`/${n}`)),
+      )
+      .map((f) => f.path);
+    const nestedManifestNote =
+      nestedManifestFiles.length > 0
+        ? ` Nested manifests exist in the tree: ${nestedManifestFiles.slice(0, 5).join(", ")}${
+            nestedManifestFiles.length > 5
+              ? `, and ${nestedManifestFiles.length - 5} more`
+              : ""
+          }. Inspect those before installing anything.`
+        : "";
     let manifestNote = manifest
-      ? `Root manifest ${manifest.name}, so this is a ${manifest.ecosystem} project.`
-      : `No dependency manifest at the repo root (checked package.json, pyproject.toml, requirements.txt, Cargo.toml, go.mod, composer.json, Gemfile, pom.xml, build.gradle). File mix suggests ${languageGuess}.`;
+      ? `Root manifest ${manifest.name}, so this is a ${manifest.ecosystem} project.${nestedManifestNote}`
+      : `No dependency manifest at the repo root (checked package.json, pyproject.toml, requirements.txt, Cargo.toml, go.mod, composer.json, Gemfile, pom.xml, build.gradle). File mix suggests ${languageGuess}.${nestedManifestNote}`;
     let manifestText = "";
     let depNames: string[] = [];
     let scripts: string[] = [];
     let depEntries: { name: string; version: string }[] = [];
+    // Fields hoisted out of the manifest parse so the structured survey can
+    // record what the manifest actually declares.
+    let pkgMain: string | undefined;
+    let pkgModule: string | undefined;
+    let pkgBins: string[] = [];
+    let workspacePatterns: string[] = [];
+    let engines: string | undefined;
+    // Facts the run-strategy resolver needs beyond the display strings.
+    let scriptMap: Record<string, string> = {};
+    let devDepMap: Record<string, string> = {};
+    let pkgPackageManager: string | undefined;
 
     if (manifest) {
       const manifestRes = await fetchJson(
@@ -282,14 +370,48 @@ export const runLive = internalAction({
               scripts?: Record<string, string>;
               dependencies?: Record<string, string>;
               devDependencies?: Record<string, string>;
+              main?: unknown;
+              module?: unknown;
+              bin?: unknown;
+              workspaces?: unknown;
+              engines?: Record<string, unknown>;
+              packageManager?: string;
             };
             depNames = Object.keys(pkg.dependencies ?? {});
             const devDeps = Object.keys(pkg.devDependencies ?? {});
             scripts = Object.keys(pkg.scripts ?? {});
-            depEntries = Object.entries(pkg.dependencies ?? {}).map(([name, version]) => ({
-              name,
-              version,
-            }));
+            scriptMap = pkg.scripts ?? {};
+            devDepMap = pkg.devDependencies ?? {};
+            pkgPackageManager =
+              typeof pkg.packageManager === "string" ? pkg.packageManager : undefined;
+            // Runtime and dev dependencies both belong in the handover: for a
+            // library with no runtime deps (is-number, for example) the dev
+            // tooling is the only dependency surface an operator can inherit.
+            depEntries = [
+              ...Object.entries(pkg.dependencies ?? {}),
+              ...Object.entries(pkg.devDependencies ?? {}),
+            ].map(([name, version]) => ({ name, version: String(version) }));
+            pkgMain = typeof pkg.main === "string" ? pkg.main : undefined;
+            pkgModule = typeof pkg.module === "string" ? pkg.module : undefined;
+            pkgBins =
+              typeof pkg.bin === "string"
+                ? [pkg.bin]
+                : pkg.bin && typeof pkg.bin === "object"
+                  ? Object.values(pkg.bin)
+                  : [];
+            const ws = pkg.workspaces;
+            workspacePatterns = Array.isArray(ws)
+              ? ws.filter((w): w is string => typeof w === "string")
+              : ws && Array.isArray((ws as { packages?: unknown }).packages)
+                ? ((ws as { packages: unknown[] }).packages.filter(
+                    (w): w is string => typeof w === "string",
+                  ))
+                : [];
+            engines = pkg.engines
+              ? Object.entries(pkg.engines)
+                  .map(([k, v]) => `${k} ${String(v)}`)
+                  .join(", ")
+              : undefined;
             manifestNote = `${pkg.name ?? "unnamed"} v${pkg.version ?? "?"} (Node.js): ${depNames.length} runtime deps, ${devDeps.length} dev deps. Scripts: ${scripts.join(", ") || "none"}.`;
           } else {
             // Text manifests: surface the pinned/required package names.
@@ -325,6 +447,159 @@ export const runLive = internalAction({
       model: NEBIUS_FAST_MODEL, tokens: 0, status: "ok", at: at(),
     });
 
+    // ── Structured survey ──────────────────────────────────────────────────
+    // The pack's architecture map and runbook are assembled from these facts,
+    // captured once here instead of being re-parsed out of prose later.
+    const lockfile = (
+      [
+        { file: "package-lock.json", manager: "npm" },
+        { file: "pnpm-lock.yaml", manager: "pnpm" },
+        { file: "yarn.lock", manager: "yarn" },
+        { file: "bun.lock", manager: "bun" },
+        { file: "bun.lockb", manager: "bun" },
+        { file: "poetry.lock", manager: "poetry" },
+        { file: "Pipfile.lock", manager: "pipenv" },
+        { file: "uv.lock", manager: "uv" },
+        { file: "Cargo.lock", manager: "cargo" },
+        { file: "go.sum", manager: "go" },
+      ] as const
+    ).find((l) => rootFiles.has(l.file));
+
+    const declaredEntryPoints = [pkgMain, pkgModule, ...pkgBins].filter(
+      (p): p is string => Boolean(p),
+    );
+    const conventionEntryPoints: string[] =
+      (
+        {
+          "package.json": [
+            "src/index.ts", "src/index.tsx", "src/index.js", "src/index.jsx",
+            "src/main.ts", "src/main.tsx", "src/main.js",
+            "index.js", "server.js", "src/server.ts", "src/server.js",
+          ],
+          "pyproject.toml": ["main.py", "app.py", "manage.py", "wsgi.py", "asgi.py", "src/main.py"],
+          "requirements.txt": ["main.py", "app.py", "manage.py", "wsgi.py", "asgi.py", "src/main.py"],
+          "setup.py": ["main.py", "app.py"],
+          Pipfile: ["main.py", "app.py"],
+          "Cargo.toml": ["src/main.rs", "src/lib.rs"],
+          "go.mod": ["main.go", "cmd"],
+          "composer.json": ["index.php", "public/index.php"],
+          Gemfile: ["config.ru", "app.rb"],
+          "pom.xml": ["src/main/java"],
+          "build.gradle": ["src/main/java"],
+        } as Record<string, string[]>
+      )[manifest?.name ?? ""] ?? [];
+    const foundEntryPoints = conventionEntryPoints
+      .filter((p) => files.some((f) => f.path === p || f.path.startsWith(`${p}/`)))
+      .map((p) => (p === "cmd" ? "cmd/" : p));
+    const entryPoints = [
+      ...new Set([...declaredEntryPoints, ...foundEntryPoints]),
+    ].slice(0, 6);
+
+    const nestedManifests = manifest
+      ? files.filter((f) => f.path !== manifest.name && f.path.endsWith(manifest.name)).length
+      : 0;
+
+    // ── Execution strategy ─────────────────────────────────────────────────
+    // How this repo's own toolchain installs, builds and tests itself: the
+    // lockfile picks the package manager, executable CI commands cover
+    // monorepos, and package.json scripts are the fallback. Resolved once
+    // here so the plan, the sandbox loop, the runbook and the pack all read
+    // the same answer instead of re-deriving it.
+    const runnerConfigured = Boolean(
+      process.env.RUNNER_URL && process.env.RUNNER_TOKEN,
+    );
+    let strategy: RunStrategy | null = null;
+    if (runnerConfigured) {
+      let ciRuns: string[] = [];
+      let ciSource: string | undefined;
+      if (manifest?.name === "package.json") {
+        const workflowPaths = files
+          .filter((f) => /^\.github\/workflows\/[^/]+\.ya?ml$/i.test(f.path))
+          .slice(0, 3)
+          .map((f) => f.path);
+        for (const path of workflowPaths) {
+          if (ciRuns.length >= 12) break;
+          const wfRes = await fetchJson(`${base}/contents/${path}?ref=${meta.default_branch}`);
+          if (!wfRes.ok) continue;
+          const wf = wfRes.body as { content?: string; encoding?: string };
+          const text = Buffer.from(
+            wf.content ?? "",
+            wf.encoding === "base64" ? "base64" : "utf8",
+          ).toString("utf8");
+          const runs = ciCommandsFrom(text).slice(0, 8);
+          if (runs.length > 0) {
+            ciRuns = ciRuns.concat(runs);
+            if (!ciSource) ciSource = path;
+          }
+        }
+      }
+      strategy = resolveStrategy({
+        ecosystem,
+        lockfile: lockfile?.file,
+        pkg:
+          manifest?.name === "package.json"
+            ? {
+                scripts: scriptMap,
+                devDependencies: devDepMap,
+                workspaces: workspacePatterns,
+                packageManager: pkgPackageManager,
+              }
+            : null,
+        ciRuns,
+        ciSource,
+        testFiles,
+        workspaceManifests: nestedManifests,
+        manifestText,
+      });
+    }
+
+    const survey = {
+      language: languageGuess,
+      files: files.length,
+      manifest: manifest?.name,
+      ecosystem,
+      lockfile: lockfile?.file,
+      packageManager: lockfile?.manager,
+      entryPoints,
+      workspaces: workspacePatterns,
+      workspaceManifests: nestedManifests,
+      scripts,
+      engines,
+      containerAssets,
+      testFiles,
+      envTemplates: envDocCount,
+      docs: docCount,
+      ...(strategy ? { strategy } : {}),
+    };
+    // Cross-phase handoff: later phases (probes, repair, analysis) read these
+    // instead of re-fetching the same facts.
+    const notesObj = {
+      census: censusNote,
+      manifest: manifestNote,
+      repo: meta.full_name,
+      branch: meta.default_branch,
+      license: meta.license?.spdx_id ?? "none",
+      reach: `HTTP ${repoRes.status}`,
+      httpCode: repoRes.status,
+      idleDays: daysIdle,
+      declaresTest:
+        scripts.includes("test") || /pytest|unittest|tox|nose/.test(manifestText),
+    };
+    await ctx.runMutation(internal.liveWrite.patchRun, {
+      runId,
+      patch: { survey, notes: notesObj },
+    });
+
+    if (runnerConfigured) {
+      await ctx.runMutation(internal.liveWrite.appendStep, {
+        runId, userId, seq: seq++, title: "Run strategy",
+        detail: strategy
+          ? `Resolved from ${strategy.source}: ${strategy.label}.`
+          : `The sandbox is configured, but the repository declares no root dependency manifest and no runnable test strategy (execution stays static).${nestedManifestNote}`,
+        model: NEBIUS_FAST_MODEL, tokens: 0, status: "ok", at: at(),
+      });
+    }
+
     // Seed the Dependency intel table from the manifest. Research (registry
     // latest, Tavily notes) happens on demand from the dashboard.
     for (const d of depEntries.slice(0, 24)) {
@@ -334,7 +609,13 @@ export const runLive = internalAction({
     }
 
     // ── Phase 4: Nemotron onboarding plan (screened) ──────────────────────
-    const planUserBase = `The engineering team is handing ${meta.full_name} over to a new owner.\nLanguage: ${meta.language}\nIdle for ${daysIdle} days\nSurvey: ${files.length} files; ${manifestNote}\nDependencies: ${depNames.slice(0, 25).join(", ") || "unknown"}\n\nWrite the first-day onboarding and deployment plan a new owner follows. Describe only reading, installing, configuring, running and verifying what already exists.`;
+    const planUserBase = `The engineering team is handing ${meta.full_name} over to a new owner.\nLanguage: ${meta.language}\nIdle for ${daysIdle} days\nSurvey: ${files.length} files; ${manifestNote}\nEntry points: ${entryPoints.join(", ") || "none identified"}. Lockfile: ${
+      lockfile?.file ?? "none"
+    }. Workspaces: ${
+      workspacePatterns.length > 0
+        ? `${workspacePatterns.join(", ")} (${nestedManifests} nested manifests)`
+        : "single package"
+    }.\nExecution strategy: ${strategy?.label ?? "not resolved; execution stays static"}\nDependencies: ${depNames.slice(0, 25).join(", ") || "unknown"}\n\nWrite the first-day onboarding and deployment plan a new owner follows. Describe only reading, installing, configuring, running and verifying what already exists.`;
 
     let planText = "";
     let planTokens = 0;
@@ -354,7 +635,7 @@ export const runLive = internalAction({
                 : ""),
           },
         ],
-        700,
+        1000,
       );
       if (!res.ok) {
         if (attempt === 1) {
@@ -379,6 +660,9 @@ export const runLive = internalAction({
         continue;
       }
       planText = res.text;
+      if (res.truncated) {
+        planText += " (The plan hit the model's token limit and ends here.)";
+      }
       planOk = true;
       await ctx.runMutation(internal.liveWrite.appendStep, {
         runId, userId, seq: seq++, title: "Planning",
@@ -413,255 +697,629 @@ export const runLive = internalAction({
       patch: { status: "verifying" },
     });
 
-    const probes: { claim: string; command: string; output: string; exit: number; verdict: "verified" | "unverified" }[] = [];
+    type ProbeRow = {
+      claim: string;
+      command: string;
+      output: string;
+      exit: number;
+      verdict: "verified" | "unverified" | "contradicted";
+    };
+    const probeRows: ProbeRow[] = [];
+    const isNode = ecosystem === "Node.js";
+    const clipOutput = (s: string) =>
+      s.length > 1400 ? `${s.slice(0, 1400)}\n… (truncated)` : s;
 
-    probes.push({
+    // Intake reachability is a real HTTP request, so it is always recorded.
+    probeRows.push({
       claim: `Repository is reachable via the GitHub API on branch ${meta.default_branch}.`,
       command: `GET ${base}`,
       output: `HTTP ${repoRes.status}. ${meta.full_name}, ${meta.size} KB, pushed ${meta.pushed_at}.`,
       exit: 0,
       verdict: "verified",
     });
-    const isNode = ecosystem === "Node.js";
-    probes.push({
-      claim: isNode
-        ? "The manifest declares at least one runnable script."
-        : "The repo declares a dependency manifest a new owner can install from.",
-      command: isNode
-        ? "cat package.json | jq .scripts"
-        : `head -20 ${manifest?.name ?? "manifest"}`,
-      output: manifestNote,
-      exit: isNode ? (scripts.length > 0 ? 0 : 1) : manifest ? 0 : 1,
-      verdict: isNode
-        ? scripts.length > 0
-          ? "verified"
-          : "unverified"
-        : manifest
-          ? "verified"
-          : "unverified",
-    });
 
-    const jsTestFiles = count(/\.test\.|\.spec\.|__tests__/);
-    const pyTestFiles = count(/(^|\/)(test_[^/]*\.py|[^/]*_test\.py|tests?\/)/);
-    const testFiles = jsTestFiles + pyTestFiles;
-    const declaresTestCmd =
-      scripts.some((s) => s.includes("test")) ||
-      /pytest|unittest|tox|nose/.test(manifestText);
-    const hasTests = testFiles > 0 || declaresTestCmd;
-    probes.push({
-      claim: "The repo ships a runnable test suite.",
-      command:
-        "find . \\( -name '*test*' -o -name '*spec*' \\) -not -path './node_modules/*' | wc -l",
-      output: `${testFiles} candidate test files on disk (JS ${jsTestFiles}, Python ${pyTestFiles}); test runner declared: ${declaresTestCmd ? "yes" : "no"}.`,
-      exit: hasTests ? 0 : 1,
-      verdict: hasTests ? "verified" : "unverified",
-    });
+    // With a runner attached, the deployability claims are checked against a
+    // fresh clone with real commands; without one, the same claims come from
+    // the GitHub tree and the recorded command says exactly that. The two
+    // modes can never be confused in the ledger.
+    let probeSource: "clone" | "github-tree" = "github-tree";
+    let probeNote = "";
+    if (runnerConfigured) {
+      const cloneProbe = await ctx.runAction(internal.runner.execute, {
+        repoUrl: run.repoUrl,
+        probes: isNode ? "node" : "generic",
+      });
+      const list = cloneProbe.probes ?? [];
+      if (cloneProbe.ok && cloneProbe.clone?.ok && list.length > 0) {
+        probeSource = "clone";
+        const probeFor = (needle: string) => list.find((p) => p.command.includes(needle));
+        const head = probeFor("rev-parse");
+        const committed = probeFor("log -1");
+        const testPaths = probeFor("*test*");
+        const ciPaths = probeFor(".github/workflows");
+        const containerPaths = probeFor("Dockerfile");
+        const envPaths = probeFor("env.example");
+        const licensePaths = probeFor("LICENSE");
+        const manifestProbe = probeFor("npm pkg get");
+        const nodeVersion = probeFor("node --version");
+        const npmVersion = probeFor("npm --version");
+        // The runner renders genuinely empty output as "(no output)"; that
+        // placeholder must never be mistaken for a matched file path, or an
+        // absent CI workflow would count as present.
+        const pathsOf = (p: { output: string } | undefined) =>
+          (p?.output ?? "")
+            .split("\n")
+            .map((l) => l.trim())
+            .filter((l) => l && l !== "(no output)");
+        const listed = (paths: string[], cap = 8) =>
+          `${paths.length} file(s): ${paths.slice(0, cap).join(", ")}${paths.length > cap ? ", …" : ""}.`;
+        const someVerdict = (found: boolean, staticCount: number) =>
+          found ? ("verified" as const) : staticCount > 0 ? ("contradicted" as const) : ("unverified" as const);
 
-    const envDocCount = count(
-      /\.env\.(example|sample|template)|(^|\/)env\.(example|sample)/,
-    );
-    probes.push({
-      claim: "Environment contract is documented for a new operator.",
-      command: "ls .env.example .env.sample env.example 2>/dev/null || echo MISSING",
-      output:
-        envDocCount > 0
-          ? `${envDocCount} env template file(s) present.`
-          : "No env template found. Operator must reconstruct variables from code or docs.",
-      exit: envDocCount > 0 ? 0 : 1,
-      verdict: envDocCount > 0 ? "verified" : "unverified",
-    });
+        probeRows.push({
+          claim: "A clean clone of the repository succeeds.",
+          command: cloneProbe.clone.command,
+          output: clipOutput(cloneProbe.clone.output),
+          exit: cloneProbe.clone.exitCode,
+          verdict: "verified",
+        });
+        probeRows.push({
+          claim: "The working tree matches the repository's current head commit.",
+          command: [head?.command, committed?.command].filter(Boolean).join("  ·  "),
+          output: `${head?.output.trim() ?? "unknown"}${
+            committed?.output.trim() ? ` committed ${committed.output.trim()}` : ""
+          }.`,
+          exit: head?.exitCode ?? 1,
+          verdict: head?.exitCode === 0 ? "verified" : "unverified",
+        });
 
-    const containerAssets = count(
-      /Dockerfile|Containerfile|(^|\/)(docker-)?compose\.ya?ml$|devcontainer\.json/i,
-    );
-    probes.push({
-      claim:
-        "Containerization or devcontainer assets exist or the loop must author them.",
-      command:
-        "find . -iname 'Dockerfile*' -o -iname 'compose*.yml' -o -iname 'devcontainer.json' | wc -l",
-      output: `${containerAssets} container/devcontainer asset(s) found.`,
-      exit: containerAssets > 0 ? 0 : 1,
-      verdict: containerAssets > 0 ? "verified" : "unverified",
-    });
-    probes.push({
-      claim: "Repository has an open-source license on file.",
-      command: "jq -r .license.spdx_id <<< meta",
-      output: meta.license?.spdx_id ? `License: ${meta.license.spdx_id}.` : "No license detected. Handover risk for commercial reuse.",
-      exit: meta.license?.spdx_id ? 0 : 1,
-      verdict: meta.license?.spdx_id ? "verified" : "unverified",
-    });
+        const testPathList = pathsOf(testPaths);
+        const conventionTests = testPathList.filter(
+          (p) => TEST_JS_RE.test(p) || TEST_PY_RE.test(p),
+        );
+        probeRows.push({
+          claim: "The repository ships a runnable test suite.",
+          command: testPaths?.command ?? "git ls-files '*test*' '*spec*'",
+          output:
+            conventionTests.length > 0
+              ? `${listed(conventionTests)}
+Convention matches are the files a runner would pick up.`
+              : testPathList.length > 0
+                ? `${testPathList.length} path(s) contain test/spec in their name, but none is a convention test file.`
+                : "No path in the clone contains test/spec in its name.",
+          exit: conventionTests.length > 0 ? 0 : 1,
+          verdict: someVerdict(conventionTests.length > 0, testFiles),
+        });
+
+        // Dependency manifests anywhere in the clone. A real inherited repo
+        // often has no root manifest and keeps its install contract in a
+        // subdirectory, so the absence of a root manifest is never reported as
+        // "nothing to install" without this list.
+        const manifestPathsProbe = probeFor("*requirements*");
+        if (manifestPathsProbe) {
+          const manifestList = pathsOf(manifestPathsProbe);
+          const rootManifests = manifestList.filter((p) => !p.includes("/"));
+          const nested = manifestList.filter((p) => p.includes("/"));
+          probeRows.push({
+            claim: "Dependency manifests are present in the clone.",
+            command: manifestPathsProbe.command,
+            output:
+              manifestList.length === 0
+                ? "No dependency manifest anywhere in the clone."
+                : `${rootManifests.length} root manifest(s)${
+                    rootManifests.length > 0 ? `: ${rootManifests.join(", ")}` : ""
+                  }; ${nested.length} nested manifest(s)${
+                    nested.length > 0
+                      ? `: ${nested.slice(0, 6).join(", ")}${nested.length > 6 ? ", …" : ""}`
+                      : ""
+                  }.`,
+            exit: manifestPathsProbe.exitCode,
+            verdict:
+              manifestList.length > 0
+                ? "verified"
+                : ecosystem !== "none detected"
+                  ? "contradicted"
+                  : "unverified",
+          });
+        }
+
+        if (isNode && manifestProbe) {
+          let declared: string[] = [];
+          try {
+            const parsed = JSON.parse(manifestProbe.output) as {
+              scripts?: Record<string, unknown>;
+            };
+            declared = Object.keys(parsed.scripts ?? {});
+          } catch {
+            /* npm printed an error instead of JSON; the raw output stands */
+          }
+          probeRows.push({
+            claim: "The manifest declares runnable scripts.",
+            command: manifestProbe.command,
+            output:
+              declared.length > 0
+                ? `${declared.length} script(s): ${declared.join(", ")}.`
+                : clipOutput(manifestProbe.output),
+            exit: manifestProbe.exitCode,
+            verdict: someVerdict(declared.length > 0, scripts.length),
+          });
+        }
+
+        const ciList = pathsOf(ciPaths);
+        probeRows.push({
+          claim: "Continuous integration workflows are present.",
+          command: ciPaths?.command ?? "git ls-files .github/workflows",
+          output: ciList.length > 0 ? listed(ciList) : "No workflow files in the clone.",
+          exit: ciPaths?.exitCode ?? 1,
+          verdict: ciList.length > 0 ? "verified" : "unverified",
+        });
+
+        const containerList = pathsOf(containerPaths);
+        probeRows.push({
+          claim: "Container assets ship with the repository.",
+          command: containerPaths?.command ?? "git ls-files '*Dockerfile*' '*compose.y*ml' '*.devcontainer*'",
+          output:
+            containerList.length > 0
+              ? listed(containerList)
+              : "No container or devcontainer assets in the clone; the loop must author them.",
+          exit: containerPaths?.exitCode ?? 1,
+          verdict: someVerdict(containerList.length > 0, containerAssets),
+        });
+
+        const envList = pathsOf(envPaths);
+        probeRows.push({
+          claim: "The environment contract is documented for a new operator.",
+          command: envPaths?.command ?? "git ls-files '*env.example' '*env.sample' '*env.template'",
+          output:
+            envList.length > 0
+              ? listed(envList)
+              : "No env template in the clone. The operator must reconstruct variables from code or docs.",
+          exit: envPaths?.exitCode ?? 1,
+          verdict: someVerdict(envList.length > 0, envDocCount),
+        });
+
+        const licenseList = pathsOf(licensePaths);
+        probeRows.push({
+          claim: "The repository has an open-source license on file.",
+          command: licensePaths?.command ?? "git ls-files '*LICENSE*' '*COPYING*'",
+          output:
+            licenseList.length > 0
+              ? listed(licenseList)
+              : `No license file in the clone. The GitHub API reports ${meta.license?.spdx_id ?? "no license"} for this repository.`,
+          exit: licensePaths?.exitCode ?? 1,
+          verdict: licenseList.length > 0 ? "verified" : meta.license?.spdx_id ? "contradicted" : "unverified",
+        });
+
+        if (isNode && nodeVersion && npmVersion) {
+          probeRows.push({
+            claim: "The sandbox provides the toolchain this repository needs.",
+            command: `${nodeVersion.command}  ·  ${npmVersion.command}`,
+            output: `${nodeVersion.output.trim()} / npm ${npmVersion.output.trim()}.`,
+            exit: nodeVersion.exitCode === 0 && npmVersion.exitCode === 0 ? 0 : 1,
+            verdict: nodeVersion.exitCode === 0 && npmVersion.exitCode === 0 ? "verified" : "unverified",
+          });
+        }
+      } else if (cloneProbe.ok && cloneProbe.clone && !cloneProbe.clone.ok) {
+        probeRows.push({
+          claim: "A clean clone of the repository succeeds.",
+          command: cloneProbe.clone.command,
+          output: clipOutput(cloneProbe.clone.output),
+          exit: cloneProbe.clone.exitCode,
+          verdict: "unverified",
+        });
+        probeNote =
+          "The clone probe failed, so the remaining claims were checked against the GitHub tree instead.";
+      } else {
+        probeNote = `The runner probe call failed (${cloneProbe.reason ?? "unknown"}: ${
+          cloneProbe.detail ?? "no detail"
+        }); the remaining claims were checked against the GitHub tree instead.`;
+      }
+    }
+
+    if (probeSource === "github-tree") {
+      const treeCommand = `GET ${base}/git/trees/${meta.default_branch}?recursive=1`;
+      if (isNode) {
+        probeRows.push({
+          claim: "The manifest declares at least one runnable script.",
+          command: `${treeCommand} (filter: package.json scripts via GET ${base}/contents/package.json)`,
+          output: manifestNote,
+          exit: scripts.length > 0 ? 0 : 1,
+          verdict: scripts.length > 0 ? "verified" : "unverified",
+        });
+      } else {
+        probeRows.push({
+          claim: "The repo declares a dependency manifest a new owner can install from.",
+          command: treeCommand,
+          output: manifestNote,
+          exit: manifest ? 0 : 1,
+          verdict: manifest ? "verified" : "unverified",
+        });
+      }
+      probeRows.push({
+        claim: "The repository ships test files recognized by convention.",
+        command: `${treeCommand} (filter: *test*|*spec*)`,
+        output: `${testFiles} convention test file(s) in the tree (JS ${jsTestFiles}, Python ${pyTestFiles}).`,
+        exit: testFiles > 0 ? 0 : 1,
+        verdict: testFiles > 0 ? "verified" : "unverified",
+      });
+      probeRows.push({
+        claim: "Continuous integration workflows are present.",
+        command: `${treeCommand} (filter: .github/workflows)`,
+        output: `${files.filter((f) => /^\.github\/workflows\//.test(f.path)).length} workflow file(s) in the tree.`,
+        exit: files.some((f) => /^\.github\/workflows\//.test(f.path)) ? 0 : 1,
+        verdict: files.some((f) => /^\.github\/workflows\//.test(f.path)) ? "verified" : "unverified",
+      });
+      probeRows.push({
+        claim: "The environment contract is documented for a new operator.",
+        command: `${treeCommand} (filter: *env.example|*env.sample|*env.template)`,
+        output:
+          envDocCount > 0
+            ? `${envDocCount} env template file(s) present.`
+            : "No env template found. The operator must reconstruct variables from code or docs.",
+        exit: envDocCount > 0 ? 0 : 1,
+        verdict: envDocCount > 0 ? "verified" : "unverified",
+      });
+      probeRows.push({
+        claim: "Container assets ship with the repository.",
+        command: `${treeCommand} (filter: Dockerfile|compose|devcontainer)`,
+        output:
+          containerAssets > 0
+            ? `${containerAssets} container/devcontainer asset(s) found.`
+            : "No container assets in the tree; the loop must author them.",
+        exit: containerAssets > 0 ? 0 : 1,
+        verdict: containerAssets > 0 ? "verified" : "unverified",
+      });
+      probeRows.push({
+        claim: "The repository has an open-source license on file.",
+        command: `GET ${base}`,
+        output: meta.license?.spdx_id
+          ? `License: ${meta.license.spdx_id}.`
+          : "No license detected. Handover risk for commercial reuse.",
+        exit: meta.license?.spdx_id ? 0 : 1,
+        verdict: meta.license?.spdx_id ? "verified" : "unverified",
+      });
+    }
 
     let evidenceSeq = 0;
-    for (const p of probes) {
+    for (const p of probeRows) {
       await ctx.runMutation(internal.liveWrite.appendEvidence, {
         runId, userId, seq: evidenceSeq++, claim: p.claim, command: p.command,
         output: p.output, exitCode: p.exit, verdict: p.verdict, at: at(),
       });
     }
 
+    const probeVerified = probeRows.filter((p) => p.verdict === "verified").length;
+    const probeContradicted = probeRows.filter((p) => p.verdict === "contradicted").length;
     await ctx.runMutation(internal.liveWrite.appendStep, {
       runId, userId, seq: seq++, title: "Deployability probes",
-      detail: `${probes.filter((p) => p.verdict === "verified").length} of ${probes.length} deployability claims verified against the real repository.`,
-      model: NEBIUS_FAST_MODEL, tokens: 0, status: "verifying", at: at(),
+      detail: `${probeVerified} of ${probeRows.length} deployability claims verified ${
+        probeSource === "clone" ? "against a clean clone with real commands" : "from the GitHub tree"
+      }${probeContradicted > 0 ? `; ${probeContradicted} contradicted by the clone` : ""}.${
+        probeNote ? ` ${probeNote}` : ""
+      }`,
+      model: NEBIUS_FAST_MODEL, tokens: 0, status: "ok", at: at(),
+    });
+    await ctx.runMutation(internal.liveWrite.patchRun, {
+      runId,
+      patch: { notes: { ...notesObj, probeVerified, probeTotal: probeRows.length } },
     });
 
-    // ── Phase 5b: sandboxed execution ──────────────────────────────────────
-    // When a runner is attached the claim stops being static: a clean clone
-    // is installed and its declared test suite actually executed, with the
-    // real stdout and exit code captured. On failure Nemotron diagnoses and
-    // gets exactly one corrective retry. Without a runner the pack stays
-    // honestly static and says so.
-    const runnerConfigured = Boolean(process.env.RUNNER_URL && process.env.RUNNER_TOKEN);
+    // ── Phase 5b: sandboxed execution and the repair loop ───────────────────
+    // With a runner attached the claim stops being static: one clean clone is
+    // installed, the resolved strategy's tests run for real, and a bounded
+    // repair loop lets the diagnosis model propose allowlisted fix commands on
+    // the same working tree until the suite goes green, the cycle budget runs
+    // out, or the model names a wall precisely. Without a runner the pack
+    // stays honestly static and says so.
     let execLine = "Sandbox runner not configured; verification stayed static.";
-    let testVerified = true;
+    let testVerified = false;
     const clip = (s: string) => (s.length > 1400 ? `${s.slice(0, 1400)}\n… (truncated)` : s);
+    type RepairState = {
+      state: "static" | "green" | "no-tests" | "error" | "wall";
+      cycle: number;
+      commands: string[];
+      execLine: string;
+      wall?: string;
+    };
+    let repair: RepairState | null = null;
 
-    if (runnerConfigured) {
-      testVerified = false;
+    if (!runnerConfigured) {
+      repair = { state: "static", cycle: 0, commands: [], execLine };
+    } else if (!strategy) {
+      execLine =
+        "The repository declares no root dependency manifest and no runnable test strategy, so the sandbox stayed unused and verification is static." +
+        (nestedManifestFiles.length > 0
+          ? ` Nested manifests exist in the tree: ${nestedManifestFiles.slice(0, 5).join(", ")}.`
+          : "");
+      repair = { state: "static", cycle: 0, commands: [], execLine };
+    } else {
+      const testRunSeq = seq++;
       await ctx.runMutation(internal.liveWrite.appendStep, {
-        runId, userId, seq: seq++, title: "Test run",
-        detail: "Cloning a clean copy into the capped sandbox and running the declared test suite.",
+        runId, userId, seq: testRunSeq, title: "Test run",
+        detail: `Cloning a clean copy into the capped sandbox and executing the resolved strategy: ${strategy.label}.`,
         model: NEBIUS_FAST_MODEL, tokens: 0, status: "verifying", at: at(),
       });
 
-      const first = await ctx.runAction(internal.runner.execute, { repoUrl: run.repoUrl });
+      const commandsUsed: string[] = [];
+      // Spec: the filmed run should show the large Nemotron model doing the
+      // diagnosis, so the tier is overridable rather than fixed to the fast
+      // loop's model.
+      const diagnoseModel = process.env.NEBIUS_DIAGNOSE_MODEL || NEBIUS_PLAN_MODEL;
+      const resultLine = (
+        label: string,
+        res: { ok: boolean; exitCode: number; timedOut?: boolean; output: string } | null | undefined,
+      ) =>
+        res
+          ? `${label}: ${res.ok ? "ok" : `exit ${res.exitCode}${res.timedOut ? " (timed out)" : ""}`}\n${res.output.slice(-600)}`
+          : `${label}: did not run`;
+      let stdout = "";
+      let sessionId: string | null = null;
+      let wall: string | undefined;
+      let cyclesRun = 0;
 
-      if (!first.ok) {
-        execLine = `Sandbox runner unavailable (${first.reason}): ${first.detail ?? "no detail"}. Verification stayed static.`;
-      } else if (first.clone && !first.clone.ok) {
+      const prepare = await ctx.runAction(internal.runner.execute, {
+        repoUrl: run.repoUrl,
+        install: strategy.install,
+        build: strategy.build,
+        tests: strategy.tests,
+      });
+
+      const preparedClone = prepare.clone;
+      if (!prepare.ok) {
+        execLine = `Sandbox runner unavailable (${prepare.reason}): ${prepare.detail ?? "no detail"}. Verification stayed static.`;
+        repair = { state: "error", cycle: 0, commands: [], execLine };
+      } else if (!preparedClone || !preparedClone.ok) {
         await ctx.runMutation(internal.liveWrite.appendEvidence, {
           runId, userId, seq: evidenceSeq++,
           claim: "A clean clone of the repository succeeds.",
-          command: `git clone --depth 1 ${run.repoUrl}`,
-          output: clip(first.clone.output),
-          exitCode: first.clone.exitCode,
+          command: preparedClone?.command ?? `git clone --depth 1 ${run.repoUrl}`,
+          output: clip(preparedClone?.output ?? "The runner returned no clone result."),
+          exitCode: preparedClone?.exitCode ?? -1,
           verdict: "unverified", at: at(),
         });
-        execLine = `Clean clone failed in the sandbox (exit ${first.clone.exitCode}). The repo is likely private or the URL is wrong.`;
+        execLine = `Clean clone failed in the sandbox (exit ${
+          preparedClone?.exitCode ?? "?"
+        }). The repo is likely private or the URL is wrong.`;
+        repair = { state: "error", cycle: 0, commands: [], execLine };
       } else {
-        if (first.install && !first.install.ok) {
+        sessionId = prepare.sessionId ?? null;
+        commandsUsed.push(strategy.install.join(" "));
+        if (strategy.build) commandsUsed.push(strategy.build.join(" "));
+
+        if (prepare.install) {
           await ctx.runMutation(internal.liveWrite.appendEvidence, {
             runId, userId, seq: evidenceSeq++,
             claim: "Dependencies install from a clean clone.",
-            command: first.install.command,
-            output: clip(first.install.output),
-            exitCode: first.install.exitCode,
-            verdict: "unverified", at: at(),
+            command: prepare.install.command,
+            output: clip(prepare.install.output),
+            exitCode: prepare.install.exitCode,
+            verdict: prepare.install.ok && !prepare.install.timedOut ? "verified" : "unverified", at: at(),
           });
         }
-        if (first.test) {
-          const passed = first.test.ok && !first.test.timedOut;
+        if (prepare.build) {
+          await ctx.runMutation(internal.liveWrite.appendEvidence, {
+            runId, userId, seq: evidenceSeq++,
+            claim: "The repository builds from a clean clone.",
+            command: prepare.build.command,
+            output: clip(prepare.build.output),
+            exitCode: prepare.build.exitCode,
+            verdict: prepare.build.ok && !prepare.build.timedOut ? "verified" : "unverified", at: at(),
+          });
+        }
+
+        const baseline = prepare.tests ?? [];
+        const baselinePassed =
+          baseline.length > 0 && baseline.every((t) => t.ok && !t.timedOut);
+        if (baseline.length > 0) {
+          const last = baseline[baseline.length - 1];
           await ctx.runMutation(internal.liveWrite.appendEvidence, {
             runId, userId, seq: evidenceSeq++,
             claim: "The declared test suite passes on a clean clone.",
-            command: first.test.command,
-            output: clip(first.test.output),
-            exitCode: first.test.exitCode,
-            verdict: passed ? "verified" : "unverified", at: at(),
+            command: baseline.map((t) => t.command).join("  &&  "),
+            output: clip(last.output),
+            exitCode: last.exitCode,
+            verdict: baselinePassed ? "verified" : "unverified", at: at(),
           });
-          testVerified = passed;
         }
 
-        if (!testVerified && (first.test || first.install)) {
-          // ── diagnose, then exactly one corrective retry ─────────────────
-          const diag = await callNebius(
-            apiKey,
-            NEBIUS_FAST_MODEL,
-            [
-              {
-                role: "system",
-                content:
-                  'You diagnose a failing test run in a sandboxed clone. Reply with strict JSON only, no fences: {"diagnosis": "max 30 words", "fixCommand": "one single-line shell command to run inside the repo before retrying the tests"}. The command must be a single line and must not contain ; | ` $ > < or the words rm, sudo, curl, wget, chmod, chown, or any URL. Prefer npm/pkg commands that repair the test environment (pin a dev dependency, set a test script env var, add a missing flag).',
-              },
-              {
-                role: "user",
-                content: `Repo: ${run.repoUrl}\nInstall: ${
-                  first.install ? `exit ${first.install.exitCode}\n${first.install.output.slice(-600)}` : "ok"
-                }\nTest: ${
-                  first.test ? `exit ${first.test.exitCode}\n${first.test.output.slice(-800)}` : "did not run"
-                }\n\nDiagnose and propose the fix command.`,
-              },
-            ],
-            400,
-          );
+        if (baselinePassed) {
+          testVerified = true;
+          execLine = `Tests passed on a clean clone in ${baseline.reduce((n, t) => n + t.durationMs, 0)} ms.`;
+          repair = { state: "green", cycle: 0, commands: commandsUsed, execLine };
+        } else {
+          stdout = [
+            resultLine("install", prepare.install),
+            resultLine("build", prepare.build),
+            resultLine("baseline tests", baseline[baseline.length - 1]),
+          ].join("\n\n");
 
-          let fixCommand: string | null = null;
-          let diagnosis = "Diagnosis unavailable.";
-          if (diag.ok) {
-            totalTokens += diag.tokens;
-            const diagCredits = Math.round((diag.tokens / 1000) * 5) / 100;
-            totalCredits += diagCredits;
-            await ctx.runMutation(internal.liveWrite.appendUsage, {
-              userId, runId, tokens: diag.tokens, credits: diagCredits, at: at(),
-            });
-            diagnosis = diag.text;
-            try {
-              const parsed = JSON.parse(diag.text.replace(/^```(?:json)?|```$/g, "").trim()) as {
-                diagnosis?: string;
-                fixCommand?: string;
-              };
-              diagnosis = parsed.diagnosis || diagnosis;
-              const candidate = (parsed.fixCommand || "").trim();
-              if (candidate && candidate.length <= 220 && !BANNED_FIX_RE.test(candidate)) {
-                fixCommand = candidate;
-              }
-            } catch {
-              diagnosis = `${diagnosis} (diagnosis was not valid JSON, no retry attempted)`;
+          for (let cycleNo = 1; cycleNo <= MAX_FIX_CYCLES; cycleNo++) {
+            if (Date.now() - pipelineStarted > CYCLE_WINDOW_MS) {
+              wall = `Stopped after ${cyclesRun} repair cycle(s): the run's time budget ran out before the suite went green.`;
+              break;
             }
-          } else {
-            diagnosis = `Diagnosis call failed: ${diag.error}`;
-          }
+            if (!sessionId) {
+              wall = "The sandbox opened no repair session, so no cycle could run.";
+              break;
+            }
 
-          // Screen the diagnosis prose too: an unsafe explanation must not be
-          // displayed, and it voids any proposed command.
-          if (UNSAFE_RE.test(diagnosis)) {
-            diagnosis = "Diagnosis discarded (the model returned unsafe instructions).";
-            fixCommand = null;
-          }
+            const diag = await callNebius(
+              apiKey,
+              diagnoseModel,
+              [
+                {
+                  role: "system",
+                  content:
+                    'You diagnose a failing test run inside a sandboxed clone of a repository. Reply with strict JSON only, no fences: {"diagnosis": "max 30 words", "fixCommand": "one single-line command to run in the clone before the tests are retried"}. The command must start with npm, pnpm, yarn, bun, npx or python3, must be a single line, and must not contain ; | & ` $ > < or absolute paths. Prefer commands that repair the environment: install a missing dev dependency, set or fix a package.json script, pin a toolchain flag. If no single safe command can repair the failure, reply {"diagnosis": "max 30 words", "giveUp": true, "wall": "the precise reason the suite cannot be made to pass in this sandbox"}.',
+                },
+                {
+                  role: "user",
+                  content: `Repo: ${run.repoUrl}\nStrategy: ${strategy.label} (from ${strategy.source})\nCycle ${cycleNo} of at most ${MAX_FIX_CYCLES}.\n\n${stdout}\n\nCommands already tried:\n${
+                    commandsUsed.length > 0
+                      ? commandsUsed.map((c) => `- ${c}`).join("\n")
+                      : "- none"
+                  }\n\nDiagnose the failure and propose the next corrective command, or give up with a precise wall.`,
+                },
+              ],
+              900,
+            );
 
-          await ctx.runMutation(internal.liveWrite.appendStep, {
-            runId, userId, seq: seq++, title: "Fix cycle",
-            detail: fixCommand
-              ? `${diagnosis} Retrying with: \`${fixCommand}\`.`
-              : `${diagnosis} No safe corrective command proposed, stopping honestly.`,
-            model: NEBIUS_FAST_MODEL, tokens: diag.ok ? diag.tokens : 0,
-            status: fixCommand ? "retry" : "failed", at: at(),
-          });
+            let diagnosis: string;
+            let argv: string[] | null = null;
+            let giveUp: string | null = null;
+            let rejected: string | undefined;
+            if (diag.ok) {
+              totalTokens += diag.tokens;
+              const diagCredits = Math.round((diag.tokens / 1000) * 5) / 100;
+              totalCredits += diagCredits;
+              await ctx.runMutation(internal.liveWrite.appendUsage, {
+                userId, runId, tokens: diag.tokens, credits: diagCredits, at: at(),
+              });
+              const parsed = extractFixCommand(diag.text);
+              diagnosis = parsed.diagnosis;
+              argv = parsed.argv;
+              giveUp = parsed.giveUp;
+              rejected = parsed.rejected;
+            } else {
+              diagnosis = `Diagnosis call failed: ${diag.error}`;
+            }
 
-          if (fixCommand) {
+            // Screen the diagnosis prose too: an unsafe explanation must not
+            // be displayed, and it voids any proposed command.
+            if (UNSAFE_RE.test(diagnosis)) {
+              diagnosis = "Diagnosis discarded (the model returned unsafe instructions).";
+              argv = null;
+              giveUp = null;
+            }
+
+            if (giveUp) {
+              wall = giveUp;
+              await ctx.runMutation(internal.liveWrite.appendStep, {
+                runId, userId, seq: seq++, title: `Fix cycle ${cycleNo}`,
+                detail: `${diagnosis} The model named the wall: ${giveUp}`,
+                model: diagnoseModel, tokens: diag.ok ? diag.tokens : 0,
+                status: "failed", at: at(),
+              });
+              break;
+            }
+            if (!argv) {
+              wall = `No safe corrective command after cycle ${cycleNo}: ${
+                rejected ?? "the model proposed nothing executable"
+              }.`;
+              await ctx.runMutation(internal.liveWrite.appendStep, {
+                runId, userId, seq: seq++, title: `Fix cycle ${cycleNo}`,
+                detail: `${diagnosis} ${wall}`,
+                model: diagnoseModel, tokens: diag.ok ? diag.tokens : 0,
+                status: "failed", at: at(),
+              });
+              break;
+            }
+
+            const fixLine = argv.join(" ");
+            commandsUsed.push(fixLine);
+            cyclesRun += 1;
+            await ctx.runMutation(internal.liveWrite.appendStep, {
+              runId, userId, seq: seq++, title: `Fix cycle ${cycleNo}`,
+              detail: `${diagnosis} Running: \`${fixLine}\`.`,
+              model: diagnoseModel, tokens: diag.ok ? diag.tokens : 0,
+              status: "retry", at: at(),
+            });
             await ctx.runMutation(internal.liveWrite.patchRun, {
-              runId, patch: { status: "fixing", fixAttempts: 1 },
+              runId, patch: { status: "fixing", fixAttempts: cyclesRun },
             });
-            const second = await ctx.runAction(internal.runner.execute, {
+
+            const cycleRes = await ctx.runAction(internal.runner.execute, {
               repoUrl: run.repoUrl,
-              fixCommand,
+              sessionId,
+              fixCommands: [argv],
+              tests: strategy.tests,
             });
-            if (second.ok && second.test) {
-              const passed = second.test.ok && !second.test.timedOut;
+            if (!cycleRes.ok) {
+              wall =
+                cycleRes.reason === "session_expired"
+                  ? `The sandbox session expired after ${cyclesRun} repair cycle(s), before the suite went green.`
+                  : `The sandbox runner failed during cycle ${cycleNo} (${cycleRes.reason}): ${cycleRes.detail ?? "no detail"}.`;
+              break;
+            }
+
+            const fixResults = cycleRes.fixes ?? [];
+            const fixOk =
+              fixResults.length > 0 && fixResults.every((f) => f.ok && !f.timedOut);
+            if (fixResults.length > 0) {
+              const lastFix = fixResults[fixResults.length - 1];
               await ctx.runMutation(internal.liveWrite.appendEvidence, {
                 runId, userId, seq: evidenceSeq++,
-                claim: "After one corrective fix, the declared test suite passes.",
-                command: `${fixCommand} && ${second.test.command}`,
-                output: clip(second.test.output),
-                exitCode: second.test.exitCode,
+                claim: `Cycle ${cycleNo}: the corrective command completes in the clone.`,
+                command: fixLine,
+                output: clip(lastFix.output),
+                exitCode: lastFix.exitCode,
+                verdict: fixOk ? "verified" : "unverified", at: at(),
+              });
+            }
+
+            const cycleTests = cycleRes.tests ?? [];
+            const ran = cycleTests.length > 0;
+            const passed = fixOk && ran && cycleTests.every((t) => t.ok && !t.timedOut);
+            if (ran) {
+              const lastTest = cycleTests[cycleTests.length - 1];
+              await ctx.runMutation(internal.liveWrite.appendEvidence, {
+                runId, userId, seq: evidenceSeq++,
+                claim: `Cycle ${cycleNo}: the declared test suite ${passed ? "passes" : "still fails"} after the corrective command.`,
+                command: cycleTests.map((t) => t.command).join("  &&  "),
+                output: clip(lastTest.output),
+                exitCode: lastTest.exitCode,
                 verdict: passed ? "verified" : "unverified", at: at(),
               });
-              testVerified = passed;
             }
-            execLine = testVerified
-              ? `Tests passed after one corrective fix (\`${fixCommand}\`).`
-              : `Tests still failing after one corrective fix (\`${fixCommand}\`).`;
-          } else {
-            execLine = "Tests failed and no safe corrective command was proposed.";
+
+            if (passed) {
+              testVerified = true;
+              execLine = `Tests passed after ${cyclesRun} repair cycle(s) on the same clone: \`${fixLine}\`.`;
+              repair = { state: "green", cycle: cyclesRun, commands: commandsUsed, execLine };
+              break;
+            }
+
+            stdout = [
+              resultLine("last corrective command", fixResults[fixResults.length - 1]),
+              ran
+                ? resultLine("tests after the corrective command", cycleTests[cycleTests.length - 1])
+                : "tests after the corrective command: did not run",
+            ].join("\n\n");
+
+            if (!fixOk) {
+              wall = `The corrective command exited ${
+                fixResults[fixResults.length - 1]?.exitCode ?? "?"
+              } in cycle ${cycleNo}, so the suite could not be rerun.`;
+              break;
+            }
           }
-        } else if (first.test) {
-          testVerified = true;
-          execLine = `Tests passed on a clean clone in ${first.test.durationMs} ms.`;
-        } else {
-          execLine = "No test script declared in the manifest; recorded as an unverified claim.";
         }
       }
 
+      if (!repair) {
+        if (!wall) {
+          wall = `Tests still failing after ${cyclesRun} repair cycle(s).`;
+        }
+        execLine = `Stopped at a wall after ${cyclesRun} repair cycle(s): ${wall}`;
+        repair = { state: "wall", cycle: cyclesRun, commands: commandsUsed, execLine, wall };
+      }
+
+      // The session is closed either way; the runner also sweeps idle sessions.
+      if (sessionId) {
+        try {
+          await ctx.runAction(internal.runner.execute, {
+            repoUrl: run.repoUrl,
+            sessionId,
+            close: true,
+          });
+        } catch {
+          /* cleanup is best-effort */
+        }
+      }
+
+      await ctx.runMutation(internal.liveWrite.finishStep, {
+        runId, seq: testRunSeq, status: testVerified ? "ok" : "failed",
+      });
       await ctx.runMutation(internal.liveWrite.appendStep, {
         runId, userId, seq: seq++, title: "Test result",
         detail: execLine,
@@ -669,6 +1327,15 @@ export const runLive = internalAction({
         status: testVerified ? "ok" : "failed", at: at(),
       });
     }
+
+    if (!repair) {
+      repair = { state: "static", cycle: 0, commands: [], execLine };
+    }
+    const finalRepair = repair;
+    await ctx.runMutation(internal.liveWrite.patchRun, {
+      runId,
+      patch: { repair: finalRepair, fixAttempts: finalRepair.cycle },
+    });
 
     // ── Phase 6: Nemotron analysis ─────────────────────────────────────────
     const analysisRes = await callNebius(
@@ -682,17 +1349,27 @@ export const runLive = internalAction({
         },
         {
           role: "user",
-          content: `Repo ${meta.full_name}, idle ${daysIdle} days.\nSurvey: ${censusNote}.\nManifest: ${manifestNote}\nProbe results:\n${probes
+          content: `Repo ${meta.full_name}, idle ${daysIdle} days.\nSurvey: ${censusNote}.\nManifest: ${manifestNote}\nProbe results:\n${probeRows
             .map((p) => `[${p.verdict}] ${p.claim} (${p.output})`)
-            .join("\n")}\nExecution: ${execLine}`,
-        },
-      ],
-      800,
-    );
+            .join("\n")}\nExecution: ${execLine}\nRepair loop: ${
+            finalRepair.state === "green"
+              ? `green after ${finalRepair.cycle} repair cycle(s)`
+              : finalRepair.state === "wall"
+                ? `stopped at a wall after ${finalRepair.cycle} cycle(s): ${finalRepair.wall}`
+                : finalRepair.state === "static"
+                  ? "not executed in a sandbox; verification stayed static"
+                  : finalRepair.state
+          }`,
+        },        ],
+        1200,
+      );
 
     let analysisText = "Analysis unavailable.";
     if (analysisRes.ok) {
       analysisText = analysisRes.text;
+      if (analysisRes.truncated) {
+        analysisText += " (The model hit its token limit and the summary ends here.)";
+      }
       await ctx.runMutation(internal.liveWrite.appendUsage, {
         userId, runId, tokens: analysisRes.tokens,
         credits: Math.round((analysisRes.tokens / 1000) * 5) / 100, at: at(),
@@ -713,9 +1390,13 @@ export const runLive = internalAction({
     });
 
     // ── Finalize ───────────────────────────────────────────────────────────
-    const verified = probes.filter((p) => p.verdict === "verified").length;
+    const verified = probeRows.filter((p) => p.verdict === "verified").length;
     let outcome = verified >= 4 ? "success" : verified >= 2 ? "partial" : "failed";
-    if (runnerConfigured && !testVerified && outcome === "success") outcome = "partial";
+    // Green tests are the strongest claim in the run: a sandbox that could not
+    // get there can never report a clean success, whatever the probes found.
+    if (runnerConfigured && !testVerified && finalRepair.state !== "static" && outcome === "success") {
+      outcome = "partial";
+    }
     await ctx.runMutation(internal.liveWrite.patchRun, {
       runId,
       patch: {
@@ -729,11 +1410,11 @@ export const runLive = internalAction({
           outcome !== "failed"
             ? { status: "live" as const, url: `https://github.com/${owner}/${repo}`, latencyMs: 0, httpCode: repoRes.status }
             : undefined,
-        summary: `Live takeover of ${meta.full_name}. ${verified}/${probes.length} deployability claims verified against the real repository. ${execLine} ${analysisText}`,
+        summary: `Live takeover of ${meta.full_name}. ${verified}/${probeRows.length} deployability claims verified against the real repository. ${execLine} ${analysisText}`,
       },
     });
 
-    return { ok: true as const, verified, total: probes.length, outcome };
+    return { ok: true as const, verified, total: probeRows.length, outcome };
   },
 });
 

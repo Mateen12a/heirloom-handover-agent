@@ -1,18 +1,21 @@
 // Real Nebius Token Factory call: drafts the handover pack's executive
 // summary with an NVIDIA Nemotron model, strictly from the evidence ledger.
-// The key comes from NEBIUS_API_KEY (set via the project's Keys tab); the
-// model id can be overridden with NEBIUS_MODEL.
+// The key comes from NEBIUS_API_KEY (set via the project's Keys tab). The
+// plan-tier model writes it (NEBIUS_PLAN_MODEL, falling back to NEBIUS_MODEL),
+// and the result is persisted on the run so the pack ships with it.
 
 "use node";
 
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 
 const BASE_URL = "https://api.tokenfactory.nebius.com/v1";
 
 export const draftSummary = action({
   args: {
+    runId: v.id("runs"),
     runName: v.string(),
     repoUrl: v.string(),
     shape: v.string(),
@@ -29,13 +32,20 @@ export const draftSummary = action({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) throw new Error("Sign in required");
+    await ctx.runMutation(internal.liveWrite.assertRunOwner, {
+      runId: args.runId,
+      userId,
+    });
 
     const apiKey = process.env.NEBIUS_API_KEY;
     if (!apiKey) {
       return { ok: false as const, reason: "missing_key" as const };
     }
 
-    const model = process.env.NEBIUS_MODEL || "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B";
+    const model =
+      process.env.NEBIUS_PLAN_MODEL ||
+      process.env.NEBIUS_MODEL ||
+      "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B";
 
     const evidenceBlock = args.evidence
       .map(
@@ -89,6 +99,12 @@ export const draftSummary = action({
       if (!text) {
         return { ok: false as const, reason: "empty" as const };
       }
+      // Persist it on the run so the handover pack is complete whether or not
+      // the reader is the person who pressed the button.
+      await ctx.runMutation(internal.liveWrite.saveNarrative, {
+        runId: args.runId,
+        text,
+      });
       return { ok: true as const, text, model };
     } catch (err) {
       return {

@@ -2,7 +2,7 @@
 
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { query, mutation } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { SCENARIO_KEYS, getScenario } from "./scenarios";
 
@@ -65,7 +65,9 @@ export const create = mutation({
     const trimmed = repoUrl.trim();
     const isGithub = /^(https?:\/\/)?(www\.)?github\.com\/[\w.-]+\/[\w.-]+(\/)?(\.git)?$/i.test(trimmed);
     if (!isGithub) {
-      throw new Error("Only public github.com repository URLs are supported.");
+      // ConvexError carries the message through to the client intact; a plain
+      // Error surfaces as a wrapped stack trace in the UI toast.
+      throw new ConvexError("Only public github.com repository URLs are supported.");
     }
 
     // Credit budget guard: cap how often one account can spend.
@@ -75,10 +77,12 @@ export const create = mutation({
       .collect();
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
     if (existing.length >= 20) {
-      throw new Error("This account reached its run limit (20). Contact the operator to raise it.");
+      throw new ConvexError(
+        "This account reached its run limit (20). Contact the operator to raise it.",
+      );
     }
     if (existing.filter((r) => r.startedAt > dayAgo).length >= 6) {
-      throw new Error("Daily run limit reached (6 per 24 hours). Try again tomorrow.");
+      throw new ConvexError("Daily run limit reached (6 per 24 hours). Try again tomorrow.");
     }
 
     const scenario = getScenario(shape);
@@ -97,7 +101,9 @@ export const create = mutation({
       // The live pipeline emits six feed steps without the sandbox runner;
       // the execution phase adds up to three more. Finalize trims the total
       // to the exact count.
-      stepsTotal: liveMode ? (process.env.RUNNER_URL ? 9 : 6) : scenario.timeline.length,
+      // The sandbox path adds a strategy step, a test-run/results pair and up
+      // to four repair cycles; finalize trims this to the exact count.
+      stepsTotal: liveMode ? (process.env.RUNNER_URL ? 13 : 6) : scenario.timeline.length,
       fixAttempts: liveMode ? 0 : scenario.timeline.filter((s) => s.status === "retry").length,
       tokensUsed: 0,
       creditsUsed: 0,
@@ -121,7 +127,7 @@ export const remove = mutation({
     const userId = await getAuthUserId(ctx);
     if (userId === null) throw new Error("Sign in required");
     const run = await ctx.db.get(runId);
-    if (!run || run.userId !== userId) throw new Error("Run not found");
+    if (!run || run.userId !== userId) throw new ConvexError("Run not found");
 
     for (const table of ["runSteps", "evidence", "dependencies"] as const) {
       for (const row of await ctx.db
