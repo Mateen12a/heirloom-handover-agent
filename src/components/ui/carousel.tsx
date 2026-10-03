@@ -93,6 +93,8 @@ function Carousel({
 
   React.useEffect(() => {
     if (!api) return
+    // Upstream shadcn pattern: sync button state from the embla instance on init.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     onSelect(api)
     api.on("reInit", onSelect)
     api.on("select", onSelect)
