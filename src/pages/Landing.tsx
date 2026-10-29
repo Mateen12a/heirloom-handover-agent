@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import "./landing.css";
 
@@ -113,51 +113,281 @@ function useReveal() {
   }, []);
 }
 
-// Isometric stack of file blocks, the repository as an object: drawn in
-// outline, with the run's orbit traced around it.
-function RepoDrawing() {
-  const blocks: [number, number, number][] = [];
-  for (let z = 0; z < 3; z++)
-    for (let x = 0; x < 4 - z; x++)
-      for (let y = 0; y < 3 - z; y++) blocks.push([x, y, z]);
-  const iso = (x: number, y: number, z: number) => [380 + (x - y) * 52, 250 + (x + y) * 30 - z * 58];
-  const pts = (a: number[][]) => a.map((p) => p.join(",")).join(" ");
+// The repository as a living object: folders and files as a slowly turning
+// 3D tree. Probes travel from the root to each file in turn; a file lights
+// green when its claim is verified and stays dim when it cannot be proven.
+// The tally feeds the status chip, so the chip reports what the drawing does.
+type Node3 = { x: number; y: number; z: number; parent: number; kind: 0 | 1 | 2; label?: string; state: 0 | 1 | 2; glow: number };
+
+function buildTree(): Node3[] {
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const nodes: Node3[] = [{ x: 0, y: 0, z: 0, parent: -1, kind: 0, label: "repo", state: 1, glow: 0 }];
+  const dirs = ["src", "test", "lib", ".github", "docs", "scripts", "bin", "config"];
+  const files = ["index.js", "package.json", "README.md", "LICENSE", "utils.js", "cli.js", "parse.js", "test.js"];
+  dirs.forEach((name, d) => {
+    const phi = Math.acos(1 - (2 * (d + 0.5)) / dirs.length);
+    const th = Math.PI * (1 + Math.sqrt(5)) * d;
+    const r = 1.55;
+    const dx = r * Math.sin(phi) * Math.cos(th);
+    const dy = r * Math.cos(phi) * 0.8;
+    const dz = r * Math.sin(phi) * Math.sin(th);
+    const di = nodes.push({ x: dx, y: dy, z: dz, parent: 0, kind: 1, label: name, state: 1, glow: 0 }) - 1;
+    const n = 6 + Math.floor(rnd() * 9);
+    for (let f = 0; f < n; f++) {
+      const a = rnd() * Math.PI * 2;
+      const b = Math.acos(2 * rnd() - 1);
+      const rr = 0.35 + rnd() * 0.5;
+      nodes.push({
+        x: dx + rr * Math.sin(b) * Math.cos(a),
+        y: dy + rr * Math.cos(b),
+        z: dz + rr * Math.sin(b) * Math.sin(a),
+        parent: di,
+        kind: 2,
+        label: f === 0 ? files[d % files.length] : undefined,
+        state: 0,
+        glow: 0,
+      });
+    }
+  });
+  return nodes;
+}
+
+function RepoField({ onTally }: { onTally: (verified: number, unproven: number, total: number) => void }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const tally = useRef(onTally);
+  useEffect(() => {
+    tally.current = onTally;
+  }, [onTally]);
+
+  useEffect(() => {
+    const cv = ref.current!;
+    const ctx = cv.getContext("2d")!;
+    const nodes = buildTree();
+    const files = nodes.map((n, i) => (n.kind === 2 ? i : -1)).filter((i) => i >= 0);
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let order: number[] = [];
+    let next = 0;
+    let lastLaunch = 0;
+    let resetAt = 0;
+    const pulses: { file: number; t0: number }[] = [];
+    const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
+    let w = 0;
+    let h = 0;
+    let dpr = 1;
+    let raf = 0;
+    let visible = true;
+
+    const shuffle = () => {
+      order = [...files].sort(() => Math.random() - 0.5);
+      next = 0;
+    };
+    const report = () => {
+      let v = 0;
+      let u = 0;
+      for (const i of files) {
+        if (nodes[i].state === 1) v++;
+        else if (nodes[i].state === 2) u++;
+      }
+      tally.current(v, u, files.length);
+    };
+    shuffle();
+    if (still) files.forEach((i, k) => (nodes[i].state = k % 5 === 4 ? 2 : 1));
+    report();
+
+    const size = () => {
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      w = cv.clientWidth;
+      h = cv.clientHeight;
+      cv.width = w * dpr;
+      cv.height = h * dpr;
+    };
+    size();
+    const onMove = (e: PointerEvent) => {
+      mouse.tx = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouse.ty = (e.clientY / window.innerHeight - 0.5) * 2;
+    };
+
+    const project = (n: Node3, ry: number, rx: number) => {
+      const cy = Math.cos(ry);
+      const sy = Math.sin(ry);
+      const cx = Math.cos(rx);
+      const sx = Math.sin(rx);
+      const x1 = n.x * cy - n.z * sy;
+      const z1 = n.x * sy + n.z * cy;
+      const y2 = n.y * cx - z1 * sx;
+      const z2 = n.y * sx + z1 * cx;
+      const scale = (w > 900 ? Math.min(w * 0.42, h * 0.95) : w * 0.85) * 0.3;
+      const p = 6 / (6 + z2);
+      const ox = w > 900 ? w * 0.7 : w * 0.5;
+      const oy = w > 900 ? h * 0.48 : h * 0.3;
+      return { x: ox + x1 * scale * p, y: oy + y2 * scale * p, p, z: z2 };
+    };
+
+    const frame = (t: number) => {
+      raf = 0;
+      if (!visible) return;
+      if (!still) {
+        if (resetAt && t > resetAt) {
+          files.forEach((i) => (nodes[i].state = 0));
+          shuffle();
+          resetAt = 0;
+          report();
+        }
+        if (!resetAt && next < order.length && t - lastLaunch > 240) {
+          pulses.push({ file: order[next++], t0: t });
+          lastLaunch = t;
+        }
+        for (let k = pulses.length - 1; k >= 0; k--) {
+          if (t - pulses[k].t0 > 900) {
+            const n = nodes[pulses[k].file];
+            n.state = Math.random() < 0.8 ? 1 : 2;
+            n.glow = 1;
+            pulses.splice(k, 1);
+            report();
+            if (next >= order.length && pulses.length === 0) resetAt = t + 2600;
+          }
+        }
+      }
+
+      mouse.x += (mouse.tx - mouse.x) * 0.04;
+      mouse.y += (mouse.ty - mouse.y) * 0.04;
+      const ry = t * 0.00012 + window.scrollY * 0.0025 + mouse.x * 0.35;
+      const rx = 0.32 + mouse.y * 0.18;
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      const P = nodes.map((n) => project(n, ry, rx));
+      const depthOf = (p: number, k: number) => Math.max(0.15, Math.min(1, (p - 0.6) * k));
+
+      ctx.lineWidth = 1;
+      nodes.forEach((n, i) => {
+        if (n.parent < 0) return;
+        const a = P[i];
+        const b = P[n.parent];
+        ctx.strokeStyle = `rgba(190, 204, 235, ${0.28 * depthOf(a.p, 1.6)})`;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      });
+
+      // probes travel root → folder → file
+      for (const pl of pulses) {
+        const k = Math.min(1, (t - pl.t0) / 900);
+        const f = nodes[pl.file];
+        const A = P[0];
+        const B = P[f.parent];
+        const C = P[pl.file];
+        const [S, E, u] = k < 0.5 ? [A, B, k * 2] : [B, C, (k - 0.5) * 2];
+        const x = S.x + (E.x - S.x) * u;
+        const y = S.y + (E.y - S.y) * u;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, 10);
+        g.addColorStop(0, "rgba(247,148,29,0.95)");
+        g.addColorStop(1, "rgba(247,148,29,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const idx = nodes.map((_, i) => i).sort((a, b) => P[b].z - P[a].z);
+      ctx.font = "500 12px Inter, system-ui, sans-serif";
+      for (const i of idx) {
+        const n = nodes[i];
+        const q = P[i];
+        const depth = depthOf(q.p, 1.7);
+        n.glow *= 0.96;
+        if (n.kind === 0) {
+          ctx.fillStyle = "#f7941d";
+          ctx.beginPath();
+          ctx.arc(q.x, q.y, 7 * q.p, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(247,148,29,0.35)";
+          ctx.beginPath();
+          ctx.arc(q.x, q.y, (14 + Math.sin(t / 400) * 3) * q.p, 0, Math.PI * 2);
+          ctx.stroke();
+          continue;
+        }
+        if (n.kind === 1) {
+          ctx.strokeStyle = `rgba(230, 236, 250, ${0.75 * depth})`;
+          ctx.fillStyle = "#0d1424";
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.arc(q.x, q.y, 5.5 * q.p, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.lineWidth = 1;
+        } else {
+          const r = (n.state === 1 ? 3.2 : 2.6) * q.p;
+          if (n.glow > 0.05 && n.state === 1) {
+            ctx.fillStyle = `rgba(60,207,122,${0.35 * n.glow})`;
+            ctx.beginPath();
+            ctx.arc(q.x, q.y, r + 10 * n.glow, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.fillStyle =
+            n.state === 1
+              ? `rgba(60,207,122,${0.95 * depth})`
+              : n.state === 2
+                ? `rgba(120,130,155,${0.7 * depth})`
+                : `rgba(170,182,210,${0.5 * depth})`;
+          ctx.beginPath();
+          ctx.arc(q.x, q.y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        if (n.label && q.p > 0.92 && w > 640) {
+          ctx.fillStyle = `rgba(214,222,240,${0.75 * depth})`;
+          ctx.fillText(n.label, q.x + 10, q.y + 4);
+        }
+      }
+      if (!still) raf = requestAnimationFrame(frame);
+    };
+
+    window.addEventListener("resize", size);
+    window.addEventListener("pointermove", onMove, { passive: true });
+    const io = new IntersectionObserver(([e]) => {
+      visible = e.isIntersecting;
+      if (visible && !raf) raf = requestAnimationFrame(frame);
+    });
+    io.observe(cv);
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      io.disconnect();
+      window.removeEventListener("resize", size);
+      window.removeEventListener("pointermove", onMove);
+    };
+  }, []);
+
+  return <canvas ref={ref} className="lp-field3d" aria-hidden="true" />;
+}
+
+function LiveChip({ verified, unproven, total }: { verified: number; unproven: number; total: number }) {
+  const done = total > 0 && verified + unproven === total;
   return (
-    <svg className="lp-draw" viewBox="0 0 760 520" aria-hidden="true">
-      <ellipse className="orbit" cx="380" cy="330" rx="330" ry="120" />
-      {blocks.map(([x, y, z], i) => {
-        const t = [iso(x, y, z + 1), iso(x + 1, y, z + 1), iso(x + 1, y + 1, z + 1), iso(x, y + 1, z + 1)];
-        const l = [iso(x, y + 1, z + 1), iso(x + 1, y + 1, z + 1), iso(x + 1, y + 1, z), iso(x, y + 1, z)];
-        const r = [iso(x + 1, y, z + 1), iso(x + 1, y + 1, z + 1), iso(x + 1, y + 1, z), iso(x + 1, y, z)];
-        return (
-          <g key={i} className="blk" style={{ "--i": i } as React.CSSProperties}>
-            <polygon points={pts(l)} className="l" />
-            <polygon points={pts(r)} className="r" />
-            <polygon points={pts(t)} className="t" />
-          </g>
-        );
-      })}
-    </svg>
+    <div className="lp-chip" aria-hidden="true">
+      <span className={`dot${done ? " ok" : ""}`} />
+      <span>
+        <strong>{done ? "Takeover complete" : "Probing the repository"}</strong>
+        <br />
+        {verified} verified · {unproven} unproven · {total - verified - unproven} to go
+      </span>
+    </div>
   );
 }
 
-function LiveChip() {
-  const steps = ["Reading the tree…", "Planning with Nemotron…", "Probing 11 claims…", "Running the tests…", "8 of 11 claims verified"];
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const id = setInterval(() => setI((n) => (n + 1) % steps.length), 1800);
-    return () => clearInterval(id);
-  }, [steps.length]);
+function Hero() {
+  const [t, setT] = useState({ verified: 0, unproven: 0, total: 0 });
+  const onTally = useCallback(
+    (verified: number, unproven: number, total: number) => setT({ verified, unproven, total }),
+    [],
+  );
   return (
-    <div className="lp-chip" aria-hidden="true">
-      <span className={`dot${i === steps.length - 1 ? " ok" : ""}`} />
-      <span>
-        <strong>Live takeover</strong>
-        <br />
-        {steps[i]}
-      </span>
-    </div>
+    <>
+      <RepoField onTally={onTally} />
+      <LiveChip {...t} />
+    </>
   );
 }
 
@@ -430,8 +660,7 @@ export default function Landing() {
 
       <main>
         <section className="lp-hero" aria-labelledby="hero-title">
-          <RepoDrawing />
-          <LiveChip />
+          <Hero />
           <div className="lp-hero-txt">
             <h1 id="hero-title">
               Every claim, run

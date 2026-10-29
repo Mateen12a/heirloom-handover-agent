@@ -149,57 +149,17 @@
   display: flex;
   align-items: flex-end;
 }
-.lp-draw {
+.lp-field3d {
   position: absolute;
-  right: -2%;
-  top: 9%;
-  width: min(62vw, 900px);
-  height: auto;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: lp-in3d 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-.lp-draw .orbit {
-  fill: none;
-  stroke: var(--action);
-  stroke-width: 1.4;
-  opacity: 0.55;
-  stroke-dasharray: 2100;
-  stroke-dashoffset: 2100;
-  animation: lp-draw 2.6s 0.6s cubic-bezier(0.6, 0, 0.2, 1) forwards;
-}
-.lp-draw polygon {
-  stroke: rgba(214, 222, 240, 0.55);
-  stroke-width: 1;
-  stroke-linejoin: round;
-}
-.lp-draw .t {
-  fill: rgba(255, 255, 255, 0.05);
-}
-.lp-draw .l {
-  fill: rgba(255, 255, 255, 0.015);
-}
-.lp-draw .r {
-  fill: rgba(255, 255, 255, 0.03);
-}
-.lp-draw .blk {
-  opacity: 0;
-  animation: lp-drop 0.7s calc(var(--i) * 45ms + 0.2s) cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-.lp-draw .blk:nth-last-child(1) .t,
-.lp-draw .blk:nth-last-child(2) .t {
-  fill: rgba(247, 148, 29, 0.85);
-}
-@keyframes lp-draw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-@keyframes lp-drop {
+@keyframes lp-in3d {
   from {
     opacity: 0;
-    transform: translateY(-24px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
+    transform: scale(0.94);
   }
 }
 .lp-chip {
@@ -236,6 +196,7 @@
 }
 .lp-hero-txt {
   position: relative;
+  pointer-events: none;
   width: 100%;
   max-width: 1240px;
   margin: 0 auto;
@@ -256,6 +217,7 @@
   animation: lp-rise 0.9s 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .lp-actions {
+  pointer-events: auto;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -837,13 +799,9 @@ main > section + section {
     animation: none !important;
     transition: none !important;
   }
-  .lp-draw .blk,
   .js .lp-in {
     opacity: 1;
     transform: none;
-  }
-  .lp-draw .orbit {
-    stroke-dashoffset: 0;
   }
 }
 
@@ -855,11 +813,8 @@ main > section + section {
   .lp-nav-in .lp-btn {
     margin-left: auto;
   }
-  .lp-draw {
-    width: 110vw;
-    right: -20vw;
-    top: 90px;
-    opacity: 0.7;
+  .lp-field3d {
+    opacity: 0.75;
   }
   .lp-chip {
     display: none;
