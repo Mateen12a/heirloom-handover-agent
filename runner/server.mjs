@@ -271,9 +271,14 @@ function probeCommands(mode) {
         "*Cargo.toml",
         "*Gemfile",
         "*composer.json",
+        "*package.json",
+        "*package-lock.json",
+        "*yarn.lock",
+        "*pnpm-lock.yaml",
+        "*bun.lockb",
       ],
       display:
-        "git ls-files '*requirements*.txt' '*pyproject.toml' '*setup.py' '*Pipfile' '*pom.xml' '*build.gradle*' '*go.mod' '*Cargo.toml' '*Gemfile' '*composer.json'",
+        "git ls-files '*requirements*.txt' '*pyproject.toml' '*setup.py' '*setup.cfg' '*Pipfile' '*pom.xml' '*build.gradle*' '*go.mod' '*Cargo.toml' '*Gemfile' '*composer.json' '*package.json' '*package-lock.json' '*yarn.lock' '*pnpm-lock.yaml' '*bun.lockb'",
     },
     {
       exe: "git",

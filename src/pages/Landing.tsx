@@ -38,13 +38,17 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 // Every row below is copied from the seeded sample run
 // (jonschlinkert/is-number), so the hero feed can be checked against /sample.
 const feedRows: { tag: string; text: string; state: "ok" | "retry" | "fail" | "run" }[] = [
-  { tag: "intake", text: "15 files · last commit 1,478 days ago", state: "ok" },
+  { tag: "intake", text: "15 files · last commit 1,504 days ago", state: "ok" },
   { tag: "survey", text: "4 JS · 0 TS · 1 package.json · 3 docs", state: "ok" },
   { tag: "manifest", text: "is-number v7.0.0 · scripts: test", state: "ok" },
-  { tag: "strategy", text: "npm install → npm run test · from scripts", state: "ok" },
-  { tag: "plan", text: "7-step takeover plan · 888 tok", state: "ok" },
-  { tag: "probes", text: "7/10 deployability claims verified · 3 honestly unverified", state: "ok" },
-  { tag: "tests", text: "npm run test passed on a clean clone · exit 0", state: "ok" },
+  {
+    tag: "strategy",
+    text: "npm install --no-audit --no-fund → npm run test · from npm default + scripts",
+    state: "ok",
+  },
+  { tag: "plan", text: "7-step takeover plan · 691 tok", state: "ok" },
+  { tag: "probes", text: "8/11 deployability claims verified · 3 honestly unverified", state: "ok" },
+  { tag: "tests", text: "npm run test passed on a clean clone · 2,486 ms", state: "ok" },
   { tag: "analysis", text: "risk: no CI, no container assets, no env template", state: "ok" },
 ];
 
@@ -201,8 +205,8 @@ export default function Landing() {
                   <div className="flex items-center gap-2.5 border-t border-border/60 pt-3 text-muted-foreground">
                     <span className="w-20 shrink-0">evidence</span>
                     <span>
-                      claim #2 verified · cmd{" "}
-                      <span className="text-foreground/80">cat package.json | jq .scripts</span> · exit 0
+                      claim #6 verified · cmd{" "}
+                      <span className="text-foreground/80">npm pkg get scripts engines workspaces packageManager</span> · exit 0
                     </span>
                     <span className="hl-blink" style={{ color: "var(--heirloom-accent)" }}>
                       ▍
@@ -463,9 +467,9 @@ export default function Landing() {
             </motion.div>
             <motion.div {...fadeUp} className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[
-                { value: "7 / 10", label: "deployability claims verified on the sample run (jonschlinkert/is-number), the three misses left unverified" },
-                { value: "192 s", label: "intake to handover pack on that run" },
-                { value: "1,784", label: "Nemotron tokens for the whole live run" },
+                { value: "8 / 11", label: "deployability claims verified on the sample run (jonschlinkert/is-number); the three misses stay unverified" },
+                { value: "76 s", label: "intake to handover pack on that run" },
+                { value: "1,541", label: "Nemotron tokens for the whole live run" },
                 { value: "0", label: "claims shipped without a command and exit code" },
               ].map((stat) => (
                 <div key={stat.label} className="hl-card p-6">
@@ -478,9 +482,8 @@ export default function Landing() {
             </motion.div>
             <motion.p {...fadeUp} className="mt-6 text-xs leading-6 text-muted-foreground">
               Measured on one real run of jonschlinkert/is-number, executed
-              against the live GitHub API and Nebius Token Factory on
-              2 October 2026, and seeded into the app as the sample run anyone
-              can open. The set grows as we publish more runs, failed ones
+              against the live GitHub API and Nebius Token Factory, and seeded
+              into the app as the sample run anyone can open. The set grows as we publish more runs, failed ones
               included, with the evidence that explains why they failed.
             </motion.p>
           </div>
