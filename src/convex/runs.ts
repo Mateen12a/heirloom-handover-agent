@@ -69,6 +69,10 @@ export const create = mutation({
       // Error surfaces as a wrapped stack trace in the UI toast.
       throw new ConvexError("Only public github.com repository URLs are supported.");
     }
+    // Store the canonical https form: the sandbox runner only accepts
+    // https://github.com/owner/repo, and the form placeholder omits the scheme.
+    const [, owner, repo] = trimmed.match(/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i)!;
+    const canonicalUrl = `https://github.com/${owner}/${repo}`;
 
     // Credit budget guard: cap how often one account can spend.
     const existing = await ctx.db
@@ -92,7 +96,7 @@ export const create = mutation({
     const runId = await ctx.db.insert("runs", {
       userId,
       name: name.trim() || "Untitled takeover",
-      repoUrl: repoUrl.trim(),
+      repoUrl: canonicalUrl,
       shape,
       modelPlan: process.env.NEBIUS_PLAN_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
       modelFast: process.env.NEBIUS_FAST_MODEL || "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
