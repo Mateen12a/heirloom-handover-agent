@@ -9,7 +9,7 @@
   --t-sect: clamp(48px, 6.4vw, 104px);
   --t-poster: clamp(56px, 9.5vw, 150px);
   --m: clamp(20px, 2.2vw, 32px);
-  --gap: clamp(120px, 14vw, 200px);
+  --gap: clamp(64px, 7vw, 112px);
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-text);
@@ -91,7 +91,7 @@
 .lp-hero {
   --seam: 50svh;
   position: relative;
-  height: 100svh;
+  height: 88svh;
   min-height: 560px;
   background: var(--ink);
 }
@@ -200,7 +200,7 @@
 .lp-stages {
   background: var(--ink);
   color: #fff;
-  padding: clamp(96px, 12vw, 160px) var(--m) var(--gap);
+  padding: clamp(56px, 6vw, 96px) var(--m) var(--gap);
 }
 .lp-h2 {
   margin: 0;
@@ -217,7 +217,7 @@
   gap: 6px;
   height: 22vh;
   min-height: 170px;
-  margin-top: 64px;
+  margin-top: 40px;
 }
 .lp-seg {
   position: relative;
@@ -247,7 +247,7 @@
   max-width: 22ch;
 }
 .lp-note {
-  margin: 48px 0 0;
+  margin: 32px 0 0;
   font-size: var(--t-body);
   color: rgba(255, 255, 255, 0.78);
 }
@@ -255,7 +255,7 @@
 /* ── the ledger photograph, opened to full width ────────────────────── */
 .lp-photo {
   position: relative;
-  height: min(78svh, 760px);
+  height: min(60svh, 600px);
   overflow: hidden;
   background: var(--field-2);
 }
@@ -328,7 +328,7 @@
   align-items: baseline;
   gap: 8px 20px;
   max-width: 1280px;
-  margin-top: 48px;
+  margin-top: 32px;
   padding: 20px 24px;
   background: var(--surface);
   font-size: var(--t-body);
@@ -349,8 +349,8 @@
 
 /* ── showcase: a headline you can type ──────────────────────────────── */
 .lp-type {
-  min-height: 88svh;
-  padding: var(--gap) var(--m) clamp(64px, 8vw, 120px);
+  min-height: auto;
+  padding: var(--gap) var(--m) clamp(48px, 5vw, 80px);
   background: var(--surface);
   display: flex;
   flex-direction: column;
@@ -388,7 +388,7 @@
 }
 .lp-answer {
   max-width: 640px;
-  margin-top: 48px;
+  margin-top: 28px;
   background: var(--bg);
   padding: 8px 24px 24px;
 }
@@ -423,7 +423,7 @@
   flex-wrap: wrap;
   gap: 8px 28px;
   margin-top: auto;
-  padding-top: 48px;
+  padding-top: 32px;
   font-size: var(--t-body);
 }
 .lp-examples button {
@@ -498,31 +498,26 @@
 /* ── features: statements on colour fields ──────────────────────────── */
 .lp-field {
   position: relative;
-  min-height: 76svh;
-  padding: 28px;
+  min-height: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 48px;
+  padding: clamp(48px, 6vw, 88px) var(--m) 28px;
 }
 .lp-field p {
-  position: absolute;
-  top: clamp(40px, 8vh, 96px);
-  left: calc(100% * 7 / 12);
-  width: 30ch;
-  max-width: calc(100% - 56px);
-  margin: 0;
-  font-size: var(--t-body);
+  order: 2;
+  width: 34ch;
+  max-width: 100%;
+  margin: 0 0 0.6em;
+  font-size: var(--t-lead);
   line-height: 1.5;
 }
 .lp-field h3 {
-  position: absolute;
-  left: 28px;
-  bottom: 28px;
   margin: 0;
   font-size: var(--t-poster);
   font-weight: 700;
   line-height: 0.9;
   letter-spacing: -0.04em;
 }
-.lp-field.mirror p {
-  left: calc(100% / 12);
+.lp-field.mirror {
+  flex-direction: row-reverse;
 }
 .lp-field.mirror h3 {
   left: auto;
@@ -533,8 +528,7 @@
 /* ── cta: the idea again, inverted ──────────────────────────────────── */
 .lp-cta {
   position: relative;
-  min-height: 92svh;
-  padding: clamp(96px, 14vh, 160px) var(--m) 40px;
+  padding: var(--gap) var(--m) 40px;
   background: var(--ink);
   color: #fff;
   display: flex;
@@ -553,7 +547,7 @@
   justify-content: space-between;
   gap: 32px;
   margin-top: auto;
-  padding-top: 64px;
+  padding-top: 48px;
 }
 .lp-cta-row p {
   max-width: 34ch;
@@ -564,11 +558,11 @@
   min-height: 56px;
   padding: 0 28px;
   font-size: var(--t-body);
+  color: var(--action-ink);
 }
 
 /* ── footer: the repository as the headline ─────────────────────────── */
 .lp-foot {
-  min-height: 90svh;
   padding: 40px var(--m) 28px;
   background: var(--field-1);
   color: var(--field-1-ink);
@@ -592,7 +586,7 @@
 }
 .lp-foot-big {
   margin-top: auto;
-  padding-top: 96px;
+  padding-top: 64px;
   font-size: var(--t-sect);
   font-weight: 600;
   line-height: 0.95;
@@ -746,26 +740,22 @@
   .lp-figs {
     gap: 28px;
   }
-  .lp-field {
-    min-height: 64svh;
+  .lp-field,
+  .lp-field.mirror {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 48px 20px 32px;
   }
   .lp-field p,
   .lp-field.mirror p {
-    left: 20px;
-    top: 28px;
-    width: 80%;
+    width: auto;
     font-size: var(--t-body);
   }
   .lp-field h3,
   .lp-field.mirror h3 {
-    left: 20px;
-    right: auto;
-    bottom: 24px;
     text-align: left;
     font-size: 13vw;
-  }
-  .lp-cta {
-    min-height: 80svh;
   }
   .lp-cta h2 {
     font-size: 11.5vw;
