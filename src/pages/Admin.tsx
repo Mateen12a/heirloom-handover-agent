@@ -61,7 +61,7 @@ export default function Admin() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="flex min-h-svh items-center justify-center bg-background">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
       </div>
     );
@@ -69,7 +69,7 @@ export default function Admin() {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="flex min-h-svh items-center justify-center bg-background p-6">
         <div className="hl-card max-w-md p-8 text-center">
           <ShieldCheck className="mx-auto size-8 text-muted-foreground" />
           <h1 className="mt-4 text-lg font-semibold">Admin access required</h1>
@@ -86,7 +86,7 @@ export default function Admin() {
 
   if (overview === undefined) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="flex min-h-svh items-center justify-center bg-background">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
       </div>
     );
@@ -94,7 +94,7 @@ export default function Admin() {
 
   if (!overview.isAdmin && !overview.canBootstrap) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="flex min-h-svh items-center justify-center bg-background p-6">
         <div className="hl-card max-w-md p-8 text-center">
           <TriangleAlert className="mx-auto size-8" style={{ color: "var(--heirloom-amber)" }} />
           <h1 className="mt-4 text-lg font-semibold">Not authorized</h1>
@@ -134,7 +134,7 @@ function BootstrapGate() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center hl-canvas p-6">
+    <div className="flex min-h-svh items-center justify-center hl-canvas p-6">
       <div className="hl-card w-full max-w-md p-8 text-center">
         <div
           className="mx-auto flex size-12 items-center justify-center rounded-xl"
@@ -153,7 +153,7 @@ function BootstrapGate() {
         </Button>
         <Link
           to="/dashboard"
-          className="mt-3 block text-xs text-muted-foreground underline-offset-4 hover:underline"
+          className="mt-3 block text-[13px] text-muted-foreground underline-offset-4 hover:underline"
         >
           Back to workspace
         </Link>
@@ -164,8 +164,8 @@ function BootstrapGate() {
 
 function AdminConsole() {
   return (
-    <div className="hl-canvas min-h-screen">
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md">
+    <div className="hl-canvas min-h-svh">
+      <header className="sticky top-0 z-40 bg-background">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-4">
             <Link to="/dashboard">
@@ -173,7 +173,7 @@ function AdminConsole() {
             </Link>
             <Badge
               variant="outline"
-              className="hidden px-2 py-0.5 text-[11px] font-medium sm:inline-flex"
+              className="hidden px-2 py-0.5 text-[13px] font-medium sm:inline-flex"
               style={{
                 color: "var(--heirloom-violet)",
                 borderColor: "var(--heirloom-violet)",
@@ -234,10 +234,10 @@ function PlatformStats() {
             >
               <c.icon className="size-4" />
             </div>
-            <span className="text-xs font-medium text-muted-foreground">{c.label}</span>
+            <span className="text-[13px] font-medium text-muted-foreground">{c.label}</span>
           </div>
           <p className="hl-terminal mt-3 text-2xl font-semibold tracking-tight">{c.value}</p>
-          {c.sub && <p className="mt-1 text-[11px] text-muted-foreground">{c.sub}</p>}
+          {c.sub && <p className="mt-1 text-[13px] text-muted-foreground">{c.sub}</p>}
         </div>
       ))}
     </div>
@@ -287,17 +287,17 @@ function RunsTable() {
               <TableRow key={r._id}>
                 <TableCell className="max-w-[220px]">
                   <p className="truncate text-sm font-medium">{r.name}</p>
-                  <p className="hl-terminal truncate text-[11px] text-muted-foreground">{r.repoUrl}</p>
+                  <p className="hl-terminal truncate text-[13px] text-muted-foreground">{r.repoUrl}</p>
                 </TableCell>
                 <TableCell className="text-sm">{r.owner}</TableCell>
                 <TableCell className="hidden md:table-cell">
-                  <Badge variant="outline" className="px-2 py-0.5 text-[11px] font-normal capitalize">
+                  <Badge variant="outline" className="px-2 py-0.5 text-[13px] font-normal capitalize">
                     {r.shape}
                   </Badge>
                 </TableCell>
                 <TableCell>
                   <span
-                    className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize"
+                    className="inline-flex items-center rounded-full px-2 py-0.5 text-[13px] font-medium capitalize"
                     style={
                       r.status === "success"
                         ? { background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }
@@ -410,13 +410,13 @@ function UsersTable() {
                 <p className="truncate text-sm font-medium">
                   {u.isAnonymous ? "Guest session" : u.name || u.email || "Unknown"}
                 </p>
-                <p className="truncate text-[11px] text-muted-foreground">
+                <p className="truncate text-[13px] text-muted-foreground">
                   {u.email ?? (u.isAnonymous ? "anonymous" : "no email on file")}
                 </p>
               </TableCell>
               <TableCell>
                 <span
-                  className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize"
+                  className="inline-flex items-center rounded-full px-2 py-0.5 text-[13px] font-medium capitalize"
                   style={
                     u.role === "admin"
                       ? { background: "var(--heirloom-violet-soft)", color: "var(--heirloom-violet)" }
@@ -438,7 +438,7 @@ function UsersTable() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 px-2 text-xs"
+                    className="h-8 px-2 text-[13px]"
                     onClick={() => setRoleTarget({ id: u._id, role: u.role })}
                   >
                     Change role

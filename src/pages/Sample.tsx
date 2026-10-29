@@ -28,7 +28,7 @@ export default function Sample() {
   const data = useQuery(api.runs.sample);
 
   return (
-    <div className="hl-canvas min-h-screen">
+    <div className="hl-canvas min-h-svh">
       <SiteHeader />
 
       <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
@@ -62,7 +62,7 @@ export default function Sample() {
                     </h1>
                     <Badge
                       variant="outline"
-                      className="gap-1.5 px-2 py-0.5 text-[11px] font-medium"
+                      className="gap-1.5 px-2 py-0.5 text-[13px] font-medium"
                       style={{
                         background: "var(--heirloom-accent-soft)",
                         color: "var(--heirloom-accent-strong)",
@@ -74,12 +74,12 @@ export default function Sample() {
                     </Badge>
                     <Badge
                       variant="outline"
-                      className="px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                      className="px-2 py-0.5 text-[13px] font-medium text-muted-foreground"
                     >
                       sample · open to everyone
                     </Badge>
                   </div>
-                  <p className="hl-terminal mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <p className="hl-terminal mt-2 flex items-center gap-1.5 text-[13px] text-muted-foreground">
                     <GitBranch className="size-3.5" />
                     {data.run.repoUrl}
                   </p>
@@ -94,25 +94,25 @@ export default function Sample() {
 
               <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div className="rounded-lg border border-border/60 bg-muted/40 px-3.5 py-3">
-                  <p className="text-[11px] font-medium text-muted-foreground">Model</p>
+                  <p className="text-[13px] font-medium text-muted-foreground">Model</p>
                   <p className="hl-terminal mt-1 text-sm font-semibold">
                     {data.run.modelPlan.replace("nvidia/", "")}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border/60 bg-muted/40 px-3.5 py-3">
-                  <p className="text-[11px] font-medium text-muted-foreground">Steps</p>
+                  <p className="text-[13px] font-medium text-muted-foreground">Steps</p>
                   <p className="hl-terminal mt-1 text-sm font-semibold">
                     {data.run.stepsDone}/{data.run.stepsTotal}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border/60 bg-muted/40 px-3.5 py-3">
-                  <p className="text-[11px] font-medium text-muted-foreground">Tokens</p>
+                  <p className="text-[13px] font-medium text-muted-foreground">Tokens</p>
                   <p className="hl-terminal mt-1 text-sm font-semibold">
                     {data.run.tokensUsed.toLocaleString()}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border/60 bg-muted/40 px-3.5 py-3">
-                  <p className="text-[11px] font-medium text-muted-foreground">Finished</p>
+                  <p className="text-[13px] font-medium text-muted-foreground">Finished</p>
                   <p className="hl-terminal mt-1 text-sm font-semibold">
                     {data.run.finishedAt ? fmtDateTime(data.run.finishedAt) : "running"}
                   </p>
@@ -156,7 +156,7 @@ export default function Sample() {
                         <div className="min-w-0 flex-1 pt-0.5">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-medium">{step.title}</p>
-                            <span className="hl-terminal ml-auto text-[10px] text-muted-foreground">
+                            <span className="hl-terminal ml-auto text-[13px] text-muted-foreground">
                               {step.tokens.toLocaleString()} tok · {fmtDateTime(step.at)}
                             </span>
                           </div>
@@ -174,7 +174,7 @@ export default function Sample() {
             <section className="mt-6">
               <div className="mb-3 flex items-baseline justify-between">
                 <h2 className="text-sm font-semibold">Evidence ledger</h2>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[13px] text-muted-foreground">
                   {data.evidence.filter((e) => e.verdict === "verified").length} verified ·{" "}
                   {data.evidence.filter((e) => e.verdict !== "verified").length} not verified
                 </p>
@@ -185,7 +185,7 @@ export default function Sample() {
                     <div className="flex items-start justify-between gap-3">
                       <p className="text-sm leading-6">{e.claim}</p>
                       <span
-                        className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[13px] font-medium"
                         style={verdictStyle(e.verdict)}
                       >
                         {e.verdict === "verified" ? (
@@ -198,7 +198,7 @@ export default function Sample() {
                         {e.verdict}
                       </span>
                     </div>
-                    <div className="hl-terminal mt-2 rounded-md border border-border/60 bg-muted/50 px-3 py-2 text-[11.5px] leading-5">
+                    <div className="hl-code mt-2 rounded-[var(--radius)] bg-muted px-3 py-2 leading-5">
                       <p className="text-muted-foreground">
                         <span className="text-foreground/60">$</span> {e.command}
                       </p>
@@ -219,7 +219,7 @@ export default function Sample() {
                   <FileCheck2 className="size-4 text-muted-foreground" />
                   Handover pack
                 </h2>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[13px] text-muted-foreground">
                   assembled from this run's record · downloadable
                 </p>
               </div>
@@ -244,7 +244,7 @@ export default function Sample() {
                 <div className="hl-card overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-border/70 text-left text-xs text-muted-foreground">
+                      <tr className=" text-left text-[13px] text-muted-foreground">
                         <th className="px-5 py-2.5 font-medium">Package</th>
                         <th className="px-3 py-2.5 font-medium">Installed</th>
                         <th className="px-3 py-2.5 font-medium">Latest</th>
@@ -260,7 +260,7 @@ export default function Sample() {
                           <td className="hl-terminal px-3 py-3 text-muted-foreground">{d.latest}</td>
                           <td className="px-3 py-3">
                             <span
-                              className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                              className="inline-flex items-center rounded-full px-2 py-0.5 text-[13px] font-medium"
                               style={
                                 d.state === "pending"
                                   ? { background: "var(--muted)", color: "var(--muted-foreground)" }
@@ -274,7 +274,7 @@ export default function Sample() {
                               {d.state}
                             </span>
                           </td>
-                          <td className="px-5 py-3 text-xs leading-5 text-muted-foreground">{d.note}</td>
+                          <td className="px-5 py-3 text-[13px] leading-5 text-muted-foreground">{d.note}</td>
                         </tr>
                       ))}
                     </tbody>

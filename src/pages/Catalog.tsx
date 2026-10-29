@@ -74,7 +74,7 @@ function PlaybookCard({ pb }: { pb: Playbook }) {
           <Icon className="size-5" />
           </div>
         <span
-          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium"
+          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[13px] font-medium"
           style={RISK_META[pb.risk].style}
         >
           <RiskIcon className="size-3" />
@@ -82,7 +82,7 @@ function PlaybookCard({ pb }: { pb: Playbook }) {
         </span>
       </div>
 
-      <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+      <p className="mt-5 text-[13px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {pb.category}
       </p>
       <h3 className="mt-1 text-lg font-semibold tracking-tight">{pb.name}</h3>
@@ -104,14 +104,14 @@ function PlaybookCard({ pb }: { pb: Playbook }) {
           <Badge
             key={t}
             variant="outline"
-            className="border-border/80 px-2 py-0.5 text-[11px] font-normal text-muted-foreground"
+            className="border-border/80 px-2 py-0.5 text-[13px] font-normal text-muted-foreground"
           >
             {t}
           </Badge>
         ))}
       </div>
 
-      <div className="mt-5 flex items-center justify-between border-t border-border/60 pt-4">
+      <div className="mt-5 flex items-center justify-between pt-4">
         {pb.status === "playable" ? (
           <Button size="sm" className="gap-1.5" asChild>
             <a href={`/dashboard?shape=${pb.shape}`}>
@@ -128,7 +128,7 @@ function PlaybookCard({ pb }: { pb: Playbook }) {
           </Button>
         )}
         <span
-          className="text-[11px] font-medium"
+          className="text-[13px] font-medium"
           style={{
             color: pb.status === "playable" ? "var(--heirloom-accent-strong)" : "var(--heirloom-violet)",
           }}
@@ -172,16 +172,14 @@ export default function Catalog() {
   }, [query, category, playableOnly]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-svh flex-col bg-background">
       <SiteHeader />
 
       <main className="flex-1">
-        <section className="relative overflow-hidden border-b border-border/70">
-          <div className="hl-grid absolute inset-0" />
-          <div className="hl-hero-fade absolute inset-0" />
+        <section className="relative overflow-hidden">
           <div className="relative mx-auto w-full max-w-6xl px-4 pb-14 pt-14 sm:px-6 lg:pt-16">
             <p
-              className="text-xs font-semibold uppercase tracking-[0.14em]"
+              className="text-[13px] font-semibold uppercase tracking-[0.14em]"
               style={{ color: "var(--heirloom-accent-strong)" }}
             >
               Playbook catalog
@@ -230,7 +228,7 @@ export default function Catalog() {
                 />
               </div>
             </div>
-            <p className="mt-3 text-xs text-muted-foreground" aria-live="polite">
+            <p className="mt-3 text-[13px] text-muted-foreground" aria-live="polite">
               {filtered.length} of {PLAYBOOKS.length} playbooks
             </p>
           </div>
@@ -267,7 +265,7 @@ export default function Catalog() {
         </section>
 
         {/* Roadmap note */}
-        <section className="border-t border-border/70 hl-canvas">
+        <section className=" hl-canvas">
           <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6">
             <div className="hl-card flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center sm:p-8">
               <div>
@@ -306,7 +304,7 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors"
+      className="rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors"
       style={
         active
           ? {

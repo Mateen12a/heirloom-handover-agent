@@ -1,620 +1,488 @@
-import { motion } from "framer-motion";
-import {
-  ArrowRight,
-  BookOpen,
-  Boxes,
-  Check,
-  FileCheck2,
-  Gauge,
-  GitBranch,
-  Map as MapIcon,
-  ScanSearch,
-  ShieldCheck,
-  TriangleAlert,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
+import "./landing.css";
 
-const fadeUp = {
-  initial: { opacity: 0, y: 18 },
-  whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, margin: "-80px" },
-  transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
-};
+// Every figure, claim and command on this page is copied from the seeded
+// sample run (jonschlinkert/is-number), so the page can be checked against
+// /sample. Stage timings come from that run's step timestamps.
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+const stages = [
+  { name: "Read", ms: 465, time: "Half a second", clause: "First, it reads the tree, the manifest and the lockfile." },
+  { name: "Plan", ms: 1713, time: "Under two seconds", clause: "Then Nemotron Ultra on Nebius plans the takeover." },
+  { name: "Probe", ms: 7961, time: "Eight seconds", clause: "Next, eleven claims are checked on a clean clone." },
+  { name: "Run", ms: 49789, time: "Fifty seconds", clause: "Then the repo's own tests run in a capped sandbox." },
+  { name: "Report", ms: 1617, time: "Under two seconds", clause: "Last, Ultra writes the risk register from the evidence." },
+];
+const stageFills = ["#ffffff", "#e3e1dc", "#f4f4f2", "#c9c5bc", "#ffffff"];
+
+type Claim = { text: string; cmd: string; ok: boolean };
+const claims: Claim[] = [
+  { text: "the repository answers on branch master", cmd: "GET https://api.github.com/repos/jonschlinkert/is-number", ok: true },
+  { text: "a clean clone succeeds", cmd: "git clone --depth 1 --quiet https://github.com/jonschlinkert/is-number repo", ok: true },
+  { text: "the tree matches the head commit", cmd: "git rev-parse HEAD  ·  git log -1 --format=%cI", ok: true },
+  { text: "a test suite ships with it", cmd: "git ls-files '*test*' '*spec*'", ok: true },
+  { text: "the manifest declares runnable scripts", cmd: "npm pkg get scripts engines workspaces packageManager", ok: true },
+  { text: "an MIT license is on file", cmd: "git ls-files '*LICENSE*' '*License*' '*license*'", ok: true },
+  { text: "the sandbox has the toolchain it needs", cmd: "node --version  ·  npm --version", ok: true },
+  { text: "dependencies install from scratch", cmd: "npm install --no-audit --no-fund", ok: true },
+  { text: "the tests pass", cmd: "npm run test", ok: true },
+];
+const misses: Claim[] = [
+  { text: "CI workflows", cmd: "git ls-files .github/workflows", ok: false },
+  { text: "container assets", cmd: "git ls-files '*Dockerfile*' '*docker-compose*' '*.devcontainer*'", ok: false },
+  { text: "an environment template", cmd: "git ls-files '*env.example' '*env.sample' '*env.template'", ok: false },
+];
+const allClaims = [...claims, ...misses];
+
+const figures = [
+  { whole: "61", dec: ".6", cap: "seconds from repository intake to the finished risk register" },
+  { whole: "2", dec: ".5", cap: "seconds for the repo's own test suite to pass on a clean clone" },
+  { whole: "8", dec: "", cap: "of 11 deployability claims verified; 3 left unverified" },
+  { whole: "0", dec: ".07", cap: "dollars of Nemotron inference for the whole run" },
+  { whole: "0", dec: "", cap: "claims shipped without a command and an exit code" },
+];
+
+const deliverables = [
+  {
+    phrase: "The runbook",
+    body: "Install, test and boot, written from the commands that actually ran on a clean clone, not from a README that stopped being true years ago.",
+    bg: "#05070a",
+    ink: "#ffffff",
+  },
+  {
+    phrase: "The map",
+    body: "Entry points, workspaces, scripts and the dependencies between them, drawn from the surveyed tree of the repository you handed over.",
+    bg: "#e3e1dc",
+    ink: "#1f2b4d",
+  },
+  {
+    phrase: "The risks",
+    body: "What will bite the next engineer, ranked: no CI, no container, no env template, idle for 1,504 days. Each with the output that proved it.",
+    bg: "#2a3a63",
+    ink: "#ffffff",
+  },
+  {
+    phrase: "The ledger",
+    body: "Every claim, its command, its output and its exit code. Unproven claims say so. Claims a clean clone contradicts stay on the record.",
+    bg: "#f4f4f2",
+    ink: "#1f2b4d",
+  },
+];
+
+const examples = ["jonschlinkert/kind-of", "tj/commander.js", "expressjs/morgan"];
+
+function useReveal() {
+  useEffect(() => {
+    const els = document.querySelectorAll<HTMLElement>(".lp-in, .lp-bar");
+    if (!("IntersectionObserver" in window)) {
+      els.forEach((el) => el.classList.add("is-in"));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            e.target.classList.add("is-in");
+            io.unobserve(e.target);
+          }
+        }
+      },
+      { rootMargin: "0px 0px -12% 0px" },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+}
+
+function slugOf(input: string): string | null {
+  const m = input
+    .trim()
+    .replace(/^(?:https?:\/\/)?(?:www\.)?github\.com\//i, "")
+    .replace(/\.git$|\/$/g, "")
+    .match(/^([\w.-]+)\/([\w.-]+)$/);
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
+type Intake =
+  | { state: "idle" | "loading" }
+  | { state: "error"; message: string }
+  | {
+      state: "ok";
+      name: string;
+      branch: string;
+      language: string;
+      license: string;
+      idleDays: number;
+      sizeKb: number;
+    };
+
+function IntakePreview() {
+  const [value, setValue] = useState("jonschlinkert/is-number");
+  // Each answer is stored with the slug it belongs to; anything else is
+  // still loading, so no state is set synchronously inside the effect.
+  const [answer, setAnswer] = useState<{ slug: string; intake: Intake } | null>(null);
+  const slug = slugOf(value);
+  const intake: Intake = !slug
+    ? { state: "idle" }
+    : answer?.slug === slug
+      ? answer.intake
+      : { state: "loading" };
+
+  useEffect(() => {
+    if (!slug) return;
+    const ctrl = new AbortController();
+    const settle = (i: Intake) => setAnswer({ slug, intake: i });
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://api.github.com/repos/${slug}`, { signal: ctrl.signal });
+        if (res.status === 404) {
+          settle({ state: "error", message: "GitHub has no public repository by that name." });
+          return;
+        }
+        if (!res.ok) {
+          settle({ state: "error", message: `GitHub answered ${res.status}. Try again in a minute.` });
+          return;
+        }
+        const r = await res.json();
+        settle({
+          state: "ok",
+          name: r.full_name,
+          branch: r.default_branch,
+          language: r.language ?? "not detected",
+          license: r.license?.spdx_id && r.license.spdx_id !== "NOASSERTION" ? r.license.spdx_id : "none on file",
+          idleDays: Math.max(0, Math.floor((Date.now() - Date.parse(r.pushed_at)) / 86_400_000)),
+          sizeKb: r.size,
+        });
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") {
+          settle({ state: "error", message: "Could not reach GitHub from this browser." });
+        }
+      }
+    }, 450);
+    return () => {
+      ctrl.abort();
+      clearTimeout(t);
+    };
+  }, [slug]);
+
   return (
-    <p
-      className="text-xs font-semibold uppercase tracking-[0.14em]"
-      style={{ color: "var(--heirloom-accent-strong)" }}
-    >
-      {children}
-    </p>
+    <section id="try" className="lp-type" aria-labelledby="try-label">
+      <form action="/dashboard" method="get" onSubmit={(e) => !slug && e.preventDefault()}>
+        <label id="try-label" htmlFor="repo" className="lp-in">
+          Type any public GitHub repository.
+        </label>
+        <div className="lp-type-row" data-ui>
+          <input
+            id="repo"
+            name="repo"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+            autoCapitalize="none"
+          />
+        </div>
+        <div className="lp-answer lp-in" style={{ "--i": 1 } as React.CSSProperties} data-ui aria-live="polite">
+          {intake.state === "ok" ? (
+            <>
+              <dl>
+                <dt>Repository</dt>
+                <dd>{intake.name}</dd>
+                <dt>Branch</dt>
+                <dd>{intake.branch}</dd>
+                <dt>Language</dt>
+                <dd>{intake.language}</dd>
+                <dt>License</dt>
+                <dd>{intake.license}</dd>
+                <dt>Idle for</dt>
+                <dd>
+                  {intake.idleDays.toLocaleString()} {intake.idleDays === 1 ? "day" : "days"}
+                </dd>
+                <dt>Size</dt>
+                <dd>{intake.sizeKb.toLocaleString()} KB</dd>
+              </dl>
+              <button type="submit" className="lp-btn go">
+                Take over {intake.name}
+              </button>
+            </>
+          ) : (
+            <p className="state">
+              {intake.state === "loading"
+                ? "Reading the repository from the GitHub API…"
+                : intake.state === "error"
+                  ? intake.message
+                  : "Write it as owner/name, for example jonschlinkert/is-number."}
+            </p>
+          )}
+        </div>
+      </form>
+      <div className="lp-examples lp-in" style={{ "--i": 2 } as React.CSSProperties}>
+        <span>Or try</span>
+        {examples.map((ex) => (
+          <button key={ex} type="button" onClick={() => setValue(ex)}>
+            {ex}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
-// Every row below is copied from the seeded sample run
-// (jonschlinkert/is-number), so the hero feed can be checked against /sample.
-const feedRows: { tag: string; text: string; state: "ok" | "retry" | "fail" | "run" }[] = [
-  { tag: "intake", text: "15 files · last commit 1,504 days ago", state: "ok" },
-  { tag: "survey", text: "4 JS · 0 TS · 1 package.json · 3 docs", state: "ok" },
-  { tag: "manifest", text: "is-number v7.0.0 · scripts: test", state: "ok" },
-  {
-    tag: "strategy",
-    text: "npm install --no-audit --no-fund → npm run test · from npm default + scripts",
-    state: "ok",
-  },
-  { tag: "plan", text: "7-step takeover plan · 691 tok", state: "ok" },
-  { tag: "probes", text: "8/11 deployability claims verified · 3 honestly unverified", state: "ok" },
-  { tag: "tests", text: "npm run test passed on a clean clone · 2,486 ms", state: "ok" },
-  { tag: "analysis", text: "risk: no CI, no container assets, no env template", state: "ok" },
-];
+function ClaimSentence() {
+  const [lit, setLit] = useState(0);
+  const paused = useRef(false);
 
-function FeedStateDot({ state }: { state: "ok" | "retry" | "fail" | "run" }) {
-  const color =
-    state === "ok"
-      ? "var(--heirloom-accent)"
-      : state === "retry"
-        ? "var(--heirloom-amber)"
-        : state === "fail"
-          ? "var(--heirloom-red)"
-          : "var(--muted-foreground)";
-  return <span className="inline-block size-1.5 shrink-0 rounded-full" style={{ background: color }} />;
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = setInterval(() => {
+      if (!paused.current) setLit((i) => (i + 1) % allClaims.length);
+    }, 2000);
+    return () => clearInterval(id);
+  }, []);
+
+  const current = allClaims[lit];
+  const pick = (i: number) => {
+    paused.current = true;
+    setLit(i);
+  };
+  // Inline spans (not <button>) so a comma never wraps away from its claim.
+  const claimProps = (i: number) => ({
+    role: "button",
+    tabIndex: 0,
+    "aria-pressed": lit === i,
+    onClick: () => pick(i),
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        pick(i);
+      }
+    },
+  });
+
+  return (
+    <section id="ledger" className="lp-proof" aria-label="The evidence ledger of the sample run">
+      <p className="lp-runon lp-in">
+        <span className="lead">On is-number, Heirloom proved that </span>
+        {claims.map((c, i) => (
+          <span key={c.text}>
+            <span {...claimProps(i)} className="lp-claim">
+              {c.text}
+            </span>
+            {i < claims.length - 2 ? ", " : i === claims.length - 2 ? " and " : ". "}
+          </span>
+        ))}
+        <span className="lead">It found no </span>
+        {misses.map((c, j) => {
+          const i = claims.length + j;
+          return (
+            <span key={c.text}>
+              <span {...claimProps(i)} className="lp-claim miss">
+                {c.text}
+              </span>
+              {j < misses.length - 2 ? ", " : j === misses.length - 2 ? " or " : ""}
+            </span>
+          );
+        })}
+        <span className="lead">, and says so.</span>
+      </p>
+      <div className="lp-receipt lp-in" style={{ "--i": 1 } as React.CSSProperties} data-ui aria-live="polite">
+        <span>Command</span>
+        <code>$ {current.cmd}</code>
+        <span className={`verdict ${current.ok ? "ok" : "miss"}`}>
+          exit 0 · {current.ok ? "verified" : "unverified"}
+        </span>
+      </div>
+    </section>
+  );
 }
 
 export default function Landing() {
+  useReveal();
+  const total = stages.reduce((s, x) => s + x.ms, 0);
+
+  const sentence = (
+    <>
+      <span className="lp-line">
+        <span>Every claim</span>
+      </span>
+      <span className="lp-line">
+        <span>
+          <span className="lp-slot">
+            <img src="/img/ledger-1870.jpg" alt="" width={1920} height={1440} />
+          </span>
+          on record.
+        </span>
+      </span>
+    </>
+  );
+
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <SiteHeader />
+    <div className="lp">
+      <header className="lp-nav">
+        <Link to="/" className="lp-word">
+          Heirloom
+        </Link>
+        <nav className="lp-nav-links" aria-label="Main">
+          <a href="#how">How it works</a>
+          <a href="#ledger">The ledger</a>
+          <a href="#try">Try a repo</a>
+          <Link to="/sample">Sample run</Link>
+          <Link to="/dashboard" className="lp-btn">
+            Start a takeover
+          </Link>
+        </nav>
+      </header>
 
-      <main className="flex-1">
-        {/* ── Hero ───────────────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden">
-          <div className="hl-grid-strong absolute inset-0" />
-          <div className="hl-hero-fade absolute inset-0" />
-          <div className="relative mx-auto grid w-full max-w-6xl gap-12 px-4 pb-20 pt-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:pb-24 lg:pt-24">
-            <div>
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="flex flex-wrap items-center gap-2"
-              >
-                <p
-                  className="mr-1 text-xs font-semibold uppercase tracking-[0.14em]"
-                  style={{ color: "var(--heirloom-accent-strong)" }}
-                >
-                  Heirloom Handover Agent
-                </p>
-                <Badge
-                  variant="outline"
-                  className="gap-1.5 border-border bg-card/70 px-2.5 py-1 text-xs font-medium backdrop-blur"
-                >
-                  <span
-                    className="hl-blink inline-block size-1.5 rounded-full"
-                    style={{ background: "var(--heirloom-accent)" }}
-                  />
-                  Nebius × NVIDIA Global AI Hackathon
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="border-border bg-card/70 px-2.5 py-1 text-xs font-medium backdrop-blur"
-                >
-                  Coding &amp; Agentic Engineering track
-                </Badge>
-              </motion.div>
+      <main>
+        <section className="lp-hero" aria-labelledby="hero-title">
+          <h1 id="hero-title" className="lp-h1">
+            <span className="copy over">{sentence}</span>
+            <span className="copy under" aria-hidden="true">
+              {sentence}
+            </span>
+          </h1>
+          <p className="lp-hero-sub">
+            Heirloom takes over an inherited codebase, runs it in a sandbox, and
+            hands back a manual where every fact carries the command that proved
+            it.
+          </p>
+        </section>
 
-              <motion.h1
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.55, delay: 0.06 }}
-                className="mt-6 text-balance text-4xl font-semibold leading-[1.06] tracking-tight sm:text-5xl lg:text-[3.4rem]"
+        <section id="how" className="lp-stages" aria-labelledby="how-title">
+          <h2 id="how-title" className="lp-h2 lp-in">
+            About one minute
+          </h2>
+          <ol className="lp-bar" data-ui aria-label={`Five stages of the sample run, ${(total / 1000).toFixed(1)} seconds in all`}>
+            {stages.map((s, i) => (
+              <li
+                key={s.name}
+                className="lp-seg"
+                style={{ flexGrow: s.ms, flexBasis: 0, background: stageFills[i], "--i": i } as React.CSSProperties}
               >
-                Nobody hands you the manual.
-                <br />
-                <span className="text-primary">Heirloom writes it</span>, and
-                proves it.
-              </motion.h1>
-
-              <motion.p
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.55, delay: 0.12 }}
-                className="mt-5 max-w-xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8"
-              >
-                Point Heirloom at a codebase nobody understands. It clones
-                and surveys the repo, plans the takeover with Nemotron, runs
-                the real test suite in a capped sandbox, then ships a
-                handover pack where
-                <span className="text-foreground font-medium">
-                  {" "}
-                  every claim links to a command the agent actually ran
+                {s.time}
+                <span className="clause" hidden>
+                  {s.clause}
                 </span>
-                , with its output and exit code.
-              </motion.p>
-
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.55, delay: 0.18 }}
-                className="mt-8 flex flex-wrap items-center gap-3"
-              >
-                <Button size="lg" className="gap-2 px-5" asChild>
-                  <a href="/dashboard">
-                    Start a takeover
-                    <ArrowRight className="size-4" />
-                  </a>
-                </Button>
-                <Button size="lg" variant="outline" className="gap-2 px-5" asChild>
-                  <a href="#proof">
-                    <ShieldCheck className="size-4" />
-                    See how it proves things
-                  </a>
-                </Button>
-              </motion.div>
-
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.55, delay: 0.26 }}
-                className="mt-5 text-xs text-muted-foreground"
-              >
-                Runs on Nebius Token Factory · NVIDIA Nemotron planning &amp;
-                fast loop ·{" "}
-                <a href="/sample" className="font-medium underline underline-offset-2" style={{ color: "var(--heirloom-accent-strong)" }}>
-                  Open a completed sample run
-                </a>
-              </motion.p>
-            </div>
-
-            {/* Agent feed mock */}
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.16 }}
-              className="relative"
-            >
-              <div className="hl-card relative overflow-hidden">
-                <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <GitBranch className="size-4 text-muted-foreground" />
-                    heirloom take over jonschlinkert/is-number
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className="gap-1.5 px-2 py-0.5 text-[11px]"
-                    style={{
-                      color: "var(--heirloom-accent-strong)",
-                      borderColor: "var(--heirloom-accent)",
-                      background: "var(--heirloom-accent-soft)",
-                    }}
-                  >
-                    real run
-                  </Badge>
-                </div>
-                <div className="hl-terminal space-y-2.5 px-4 py-4 text-[12.5px] leading-5">
-                  {feedRows.map((row) => (
-                    <div key={row.tag} className="flex items-start gap-2.5">
-                      <FeedStateDot state={row.state} />
-                      <span className="w-20 shrink-0 text-muted-foreground">{row.tag}</span>
-                      <span className="min-w-0 flex-1 text-foreground/90">{row.text}</span>
-                    </div>
-                  ))}
-                  <div className="flex items-center gap-2.5 border-t border-border/60 pt-3 text-muted-foreground">
-                    <span className="w-20 shrink-0">evidence</span>
-                    <span>
-                      claim #6 verified · cmd{" "}
-                      <span className="text-foreground/80">npm pkg get scripts engines workspaces packageManager</span> · exit 0
-                    </span>
-                    <span className="hl-blink" style={{ color: "var(--heirloom-accent)" }}>
-                      ▍
-                    </span>
-                  </div>
-                </div>
-                <div className="border-t border-border/70 px-4 py-3">
-                  <a
-                    href="/sample"
-                    className="inline-flex items-center gap-1.5 text-xs font-medium transition-colors"
-                    style={{ color: "var(--heirloom-accent-strong)" }}
-                  >
-                    Open this completed run (no sign-in needed) →
-                  </a>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* ── Strip ──────────────────────────────────────────────────────── */}
-        <section className="border-y border-border/70 bg-muted/40">
-          <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-4 py-4 text-center text-xs font-medium tracking-wide text-muted-foreground sm:px-6">
-            <span>Nebius Token Factory: OpenAI-compatible inference</span>
-            <span className="hidden sm:inline" aria-hidden="true">·</span>
-            <span>NVIDIA Nemotron for planning &amp; fast loop calls</span>
-            <span className="hidden sm:inline" aria-hidden="true">·</span>
-            <span>Tavily dependency research: EOL &amp; advisories</span>
-            <span className="hidden sm:inline" aria-hidden="true">·</span>
-            <a
-              href="/catalog"
-              className="font-semibold transition-colors"
-              style={{ color: "var(--heirloom-accent-strong)" }}
-            >
-              Browse the playbook catalog →
-            </a>
-          </div>
-        </section>
-
-        {/* ── How it works ───────────────────────────────────────────────── */}
-        <section id="how-it-works" className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
-          <motion.div {...fadeUp} className="max-w-2xl">
-            <SectionLabel>How it works</SectionLabel>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-              One takeover, four movements
-            </h2>
-            <p className="mt-4 text-muted-foreground">
-              The agent loop plans with a large reasoning model and executes
-              with a fast one. It reads the repo before it touches it, and it
-              never ships a claim without the command, output and exit code
-              behind it.
-            </p>
-          </motion.div>
-
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                icon: ScanSearch,
-                step: "01",
-                title: "Take over the repo",
-                body: "Clone and index the tree: file census, entry points, scripts, lockfile, workspaces. The manifest and every test file are read, trusted by nothing.",
-              },
-              {
-                icon: Boxes,
-                step: "02",
-                title: "Reconstruct the environment",
-                body: "Parse dependencies, scripts and the env contract. Flag what only an operator can supply: a missing .env.example is recorded as a risk, not guessed at.",
-              },
-              {
-                icon: Gauge,
-                step: "03",
-                title: "Run it for real",
-                body: "Install and run the repo's own test suite in a capped, non-root sandbox. If it fails, Nemotron diagnoses and runs allowlisted corrective cycles on the same clone; if it still cannot go green, the run stops at a wall it names. The failure output stays in the ledger.",
-              },
-              {
-                icon: FileCheck2,
-                step: "04",
-                title: "Verify & hand over",
-                body: "Probe the repository, license and deployability surface, then assemble the runbook, architecture map and risk register, each claim cross-linked to proof.",
-              },
-            ].map((item) => (
-              <motion.div key={item.step} {...fadeUp} className="hl-card hl-card-hover p-6">
-                <div className="flex items-center justify-between">
-                  <div
-                    className="flex size-10 items-center justify-center rounded-lg"
-                    style={{ background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }}
-                  >
-                    <item.icon className="size-5" />
-                  </div>
-                  <span className="hl-terminal text-xs text-muted-foreground">{item.step}</span>
-                </div>
-                <h3 className="mt-5 text-base font-semibold">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.body}</p>
-              </motion.div>
+              </li>
             ))}
-          </div>
-        </section>
-
-        {/* ── Proof, not promises ────────────────────────────────────────── */}
-        <section id="proof" className="border-y border-border/70 hl-canvas">
-          <div className="mx-auto grid w-full max-w-6xl gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:items-center lg:py-24">
-            <motion.div {...fadeUp}>
-              <SectionLabel>The evidence ledger</SectionLabel>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-                Proof, not promises
-              </h2>
-              <p className="mt-4 leading-7 text-muted-foreground">
-                Any agent can generate a confident README. Heirloom&apos;s
-                handover pack is different by construction: a claim only enters
-                the pack if a command ran and produced output. The command, its
-                output and its exit code ship alongside the claim.
+          </ol>
+          <div className="lp-clauses" aria-hidden="true">
+            {stages.map((s) => (
+              <p key={s.name} style={{ flexGrow: s.ms, flexBasis: 0 }}>
+                <span>{s.clause}</span>
               </p>
-              <ul className="mt-6 space-y-3 text-sm leading-6">
-                {[
-                  "Verified: the agent ran the proof itself, and it holds.",
-                  "Unverified: the pack says so out loud instead of guessing.",
-                  "Contradicted: a hypothesis the sandbox disproved, kept on the record.",
-                ].map((line) => (
-                  <li key={line} className="flex items-start gap-3">
-                    <Check
-                      className="mt-0.5 size-4 shrink-0"
-                      style={{ color: "var(--heirloom-accent-strong)" }}
-                    />
-                    <span className="text-muted-foreground">{line}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-6 text-sm leading-6 text-muted-foreground">
-                When the one fix cycle does not land, the agent stops and says
-                so instead of hiding the attempt. The risk register tells the
-                next engineer exactly where to pick up.
-              </p>
-            </motion.div>
-
-            <motion.div {...fadeUp} className="hl-card overflow-hidden">
-              <div className="border-b border-border/70 px-5 py-3.5">
-                <p className="text-sm font-medium">Sample ledger · billing-dashboard</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Example entries · 6 total · 4 verified · 1 unverified · 1 contradicted
-                </p>
-              </div>
-              <div className="divide-y divide-border/60">
-                {[
-                  {
-                    claim: "App requires Mongo 6 and a reachable MONGODB_URI to boot.",
-                    cmd: "docker compose up -d && npm run dev",
-                    exit: 0,
-                    verdict: "verified" as const,
-                  },
-                  {
-                    claim: "JWT_SECRET missing causes silent auth failure, not a crash.",
-                    cmd: "JWT_SECRET= npm run dev",
-                    exit: 0,
-                    verdict: "verified" as const,
-                  },
-                  {
-                    claim: "Stripe webhook secret cannot be recovered from repo history.",
-                    cmd: "git log -p | grep -c whsec_",
-                    exit: 1,
-                    verdict: "unverified" as const,
-                  },
-                  {
-                    claim: "Lockfile resolves React 18 while the manifest says ^17.",
-                    cmd: "npm ls react",
-                    exit: 0,
-                    verdict: "contradicted" as const,
-                  },
-                ].map((row) => (
-                  <div key={row.claim} className="px-5 py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm leading-6">{row.claim}</p>
-                      <span
-                        className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
-                        style={
-                          row.verdict === "verified"
-                            ? { background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }
-                            : row.verdict === "unverified"
-                              ? { background: "var(--heirloom-amber-soft)", color: "var(--heirloom-amber)" }
-                              : { background: "var(--heirloom-red-soft)", color: "var(--heirloom-red)" }
-                        }
-                      >
-                        {row.verdict === "verified" ? (
-                          <Check className="size-3" />
-                        ) : (
-                          <TriangleAlert className="size-3" />
-                        )}
-                        {row.verdict}
-                      </span>
-                    </div>
-                    <p className="hl-terminal mt-2 truncate text-[11.5px] text-muted-foreground">
-                      $ {row.cmd}
-                      <span className="ml-2 text-foreground/60">exit {row.exit}</span>
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* ── The handover pack ──────────────────────────────────────────── */}
-        <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
-          <motion.div {...fadeUp} className="max-w-2xl">
-            <SectionLabel>The deliverable</SectionLabel>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-              What lands in your inbox
-            </h2>
-            <p className="mt-4 text-muted-foreground">
-              Not a chat log. A pack the next engineer can act on the same
-              afternoon.
-            </p>
-          </motion.div>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                icon: BookOpen,
-                title: "Runbook",
-                body: "Boot, seed, migrate, roll back. Eight procedures written against the live run, not the docs.",
-              },
-              {
-                icon: MapIcon,
-                title: "Architecture map",
-                body: "Workspaces, routes, services and the hidden dependencies between them, drawn from the surveyed tree.",
-              },
-              {
-                icon: TriangleAlert,
-                title: "Risk register",
-                body: "Ranked defects and unknowns, each with the repro command and the exact failed output that proved it.",
-              },
-              {
-                icon: ShieldCheck,
-                title: "Evidence ledger",
-                body: "The receipt book. Every claim, its command, output and exit code, with a verdict the agent stands behind.",
-              },
-            ].map((item) => (
-              <motion.div key={item.title} {...fadeUp} className="hl-card hl-card-hover p-6">
-                <div
-                  className="flex size-10 items-center justify-center rounded-lg"
-                  style={{ background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }}
-                >
-                  <item.icon className="size-5" />
-                </div>
-                <h3 className="mt-5 text-base font-semibold">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.body}</p>
-              </motion.div>
             ))}
           </div>
+          <p className="lp-note lp-in">
+            Widths are the real stage timings of the{" "}
+            <Link to="/sample" className="lp-link" style={{ color: "#fff" }}>
+              sample run of jonschlinkert/is-number
+            </Link>
+            , planned by NVIDIA Nemotron 3 Ultra and run by Nemotron 3 Nano on Nebius Token Factory.
+          </p>
         </section>
 
-        {/* ── Benchmark ──────────────────────────────────────────────────── */}
-        <section id="benchmarks" className="border-y border-border/70 hl-canvas">
-          <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
-            <motion.div {...fadeUp} className="max-w-2xl">
-              <SectionLabel>Measured, not vibes</SectionLabel>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-                The benchmark we publish against ourselves
-              </h2>
-            </motion.div>
-            <motion.div {...fadeUp} className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { value: "8 / 11", label: "deployability claims verified on the sample run (jonschlinkert/is-number); the three misses stay unverified" },
-                { value: "76 s", label: "intake to handover pack on that run" },
-                { value: "1,541", label: "Nemotron tokens for the whole live run" },
-                { value: "0", label: "claims shipped without a command and exit code" },
-              ].map((stat) => (
-                <div key={stat.label} className="hl-card p-6">
-                  <p className="hl-terminal text-3xl font-semibold tracking-tight">
-                    {stat.value}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">{stat.label}</p>
-                </div>
-              ))}
-            </motion.div>
-            <motion.p {...fadeUp} className="mt-6 text-xs leading-6 text-muted-foreground">
-              Measured on one real run of jonschlinkert/is-number, executed
-              against the live GitHub API and Nebius Token Factory, and seeded
-              into the app as the sample run anyone can open. The set grows as we publish more runs, failed ones
-              included, with the evidence that explains why they failed.
-            </motion.p>
-          </div>
-        </section>
+        <figure className="lp-photo" style={{ margin: 0 }}>
+          <img
+            src="/img/ledger-1870.jpg"
+            alt="An open account book from 1870, handwritten entries in ink with two of them struck through"
+            width={1920}
+            height={1440}
+            loading="lazy"
+          />
+          <figcaption>
+            Denis Nealon's account book, 1870. Inherited records have always
+            needed someone to check the entries. Deseronto Archives, no known
+            copyright restrictions.
+          </figcaption>
+        </figure>
 
-        {/* ── Built with ─────────────────────────────────────────────────── */}
-        <section id="built-with" className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
-          <motion.div {...fadeUp} className="max-w-2xl">
-            <SectionLabel>Built with</SectionLabel>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-              The stack doing the work
-            </h2>
-          </motion.div>
-          <div className="mt-12 grid gap-4 lg:grid-cols-3">
-            {[
-              {
-                name: "Nebius Token Factory",
-                role: "The brain",
-                body: "All planning, diagnosis and pack assembly run through the OpenAI-compatible endpoint at api.tokenfactory.nebius.com. Sandboxed executions are capped and every call is logged to the run's usage ledger.",
-              },
-              {
-                name: "NVIDIA Nemotron",
-                role: "Ultra plans, Nano executes",
-                body: "nvidia/Nemotron-3-Ultra-550b-a55b handles the takeover plan, failure diagnosis and the handover narrative. nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B drives the fast loop: manifest forensics, probes and feed updates.",
-              },
-              {
-                name: "Tavily",
-                role: "Dependency research",
-                body: "The Dependency intel tab checks the npm registry for the real latest version, then has Tavily research end-of-life status, advisories and known issues, so the pack explains not just what is old but what it is safe to move.",
-              },
-              {
-                name: "Convex",
-                role: "State and scheduling",
-                body: "The pipeline is a scheduled Convex action: every phase writes through internal mutations, so the feed, ledger, usage meter and pack stay live for anyone watching. Auth, per-account caps and the run store live here too.",
-              },
-              {
-                name: "Docker",
-                role: "Sandboxed execution",
-                body: "The runner clones, installs and tests inside a capped non-root container: read-only root filesystem, CPU, memory and pid limits, per-phase hard timeouts, and no secrets passed in. Failures and their exit codes stay in the ledger.",
-              },
-            ].map((item) => (
-              <motion.div key={item.name} {...fadeUp} className="hl-card hl-card-hover p-6">
-                <Badge
-                  variant="outline"
-                  className="px-2 py-0.5 text-[11px] font-medium"
-                  style={{
-                    color: "var(--heirloom-accent-strong)",
-                    borderColor: "var(--heirloom-accent)",
-                    background: "var(--heirloom-accent-soft)",
-                  }}
-                >
-                  {item.role}
-                </Badge>
-                <h3 className="mt-4 text-lg font-semibold">{item.name}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.body}</p>
-              </motion.div>
+        <ClaimSentence />
+
+        <IntakePreview />
+
+        <section className="lp-stats" aria-labelledby="stats-title">
+          <h2 id="stats-title" className="lp-stats-head lp-in">
+            <span className="soft">Measured on</span>
+            one real run
+          </h2>
+          <ul className="lp-figs">
+            {figures.map((f, i) => (
+              <li key={f.cap} className="lp-fig lp-in" style={{ "--i": i } as React.CSSProperties}>
+                <span className="num">
+                  <span className="whole">{f.whole}</span>
+                  <span className="dec">{f.dec}</span>
+                </span>
+                <span className="cap">{f.cap}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
 
-        {/* ── Judging alignment ──────────────────────────────────────────── */}
-        <section className="border-t border-border/70">
-          <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
-            <motion.div {...fadeUp} className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-              <div>
-                <SectionLabel>Built to be judged</SectionLabel>
-                <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-                  Four equally weighted scores. Four honest answers.
-                </h2>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[
-                  {
-                    title: "Technological implementation",
-                    body: "Two-tier Nemotron loop, sandboxed execution, scheduled state machine, not a prompt wrapper.",
-                  },
-                  {
-                    title: "Design",
-                    body: "A workspace that makes the agent's reasoning legible: feed, ledger, pack.",
-                  },
-                  {
-                    title: "Potential impact",
-                    body: "Most teams inherit a codebase eventually. Heirloom gives them their week of archaeology back.",
-                  },
-                  {
-                    title: "Quality of the idea",
-                    body: "Checkable handover packs instead of plausible documents. Nobody else ships receipts.",
-                  },
-                ].map((item) => (
-                  <div key={item.title} className="hl-card p-5">
-                    <p className="text-sm font-semibold">{item.title}</p>
-                    <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{item.body}</p>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* ── Final CTA ──────────────────────────────────────────────────── */}
-        <section className="px-4 pb-20 sm:px-6">
-          <motion.div
-            {...fadeUp}
-            className="hl-grid relative mx-auto w-full max-w-6xl overflow-hidden rounded-[calc(var(--radius)+10px)] border border-border bg-card px-6 py-16 text-center sm:px-12"
+        {deliverables.map((d, i) => (
+          <section
+            key={d.phrase}
+            className={`lp-field${i % 2 ? " mirror" : ""}`}
+            style={{ background: d.bg, color: d.ink }}
+            aria-label={d.phrase}
           >
-            <div className="relative">
-              <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-                Hand over the mess. Get back the manual, with receipts.
-              </h2>
-              <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-                Pick a playbook from the catalog, hand over the repo, and watch
-                the loop work: intake, survey, plan, probes, the sandboxed test
-                run and the pack.
-              </p>
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                <Button size="lg" className="gap-2 px-5" asChild>
-                  <a href="/dashboard">
-                    Start a takeover
-                    <ArrowRight className="size-4" />
-                  </a>
-                </Button>
-                <Button size="lg" variant="outline" asChild>
-                  <a href="/catalog">Browse the playbooks</a>
-                </Button>
-              </div>
-            </div>
-          </motion.div>
+            <p className="lp-in">{d.body}</p>
+            <h3 className="lp-in" style={{ "--i": 1 } as React.CSSProperties}>
+              {d.phrase}
+            </h3>
+          </section>
+        ))}
+
+        <section className="lp-cta" aria-labelledby="cta-title">
+          <h2 id="cta-title" className="lp-in">
+            Hand it over.
+            <br />
+            Keep the receipts.
+          </h2>
+          <div className="lp-cta-row">
+            <p className="lp-in">
+              Sign in as a guest and point Heirloom at the repository nobody
+              wants to touch. The pack is ready in about a minute.
+            </p>
+            <Link to="/dashboard" className="lp-btn lp-in" style={{ "--i": 1 } as React.CSSProperties}>
+              Start a takeover
+            </Link>
+          </div>
         </section>
       </main>
 
-      <SiteFooter />
+      <footer className="lp-foot">
+        <div className="lp-foot-top">
+          <div className="notes">
+            <p>
+              <strong>Heirloom Handover Agent.</strong> Proof-backed handover
+              for inherited codebases.
+            </p>
+            <p>
+              Runs on Nebius Token Factory. NVIDIA Nemotron 3 Ultra plans,
+              Nemotron 3 Nano executes. Tavily researches dependencies.
+            </p>
+            <p>Built for the Nebius × NVIDIA Global AI Hackathon, Coding and Agentic Engineering track.</p>
+          </div>
+          <a href="#hero-title" className="lp-link">
+            Back to top
+          </a>
+        </div>
+        <a className="lp-foot-big" href="https://github.com/Mateen12a/heirloom-handover-agent">
+          github.com/Mateen12a/
+          <br />
+          heirloom-handover-agent
+        </a>
+        <div className="lp-foot-meta">
+          <span>
+            <Link to="/sample">Sample run</Link>
+            <Link to="/catalog">Playbooks</Link>
+            <Link to="/dashboard">Workspace</Link>
+          </span>
+          <span>Ledger photograph: Deseronto Archives, via Wikimedia Commons</span>
+          <span>MIT licence · 2026</span>
+        </div>
+      </footer>
     </div>
   );
 }

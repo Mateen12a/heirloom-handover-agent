@@ -8,7 +8,7 @@ export function SiteFooter() {
   const navigate = useNavigate();
 
   return (
-    <footer className="border-t border-border/70 bg-background">
+    <footer className=" bg-background">
       <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
         <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
           <div className="flex flex-col gap-2">
@@ -60,7 +60,7 @@ export function SiteFooter() {
             )}
           </div>
         </div>
-        <p className="mt-8 border-t border-border/60 pt-6 text-xs text-muted-foreground">
+        <p className="mt-8 pt-6 text-[13px] text-muted-foreground">
           Built for the Nebius × NVIDIA Global AI Hackathon · Running on Nebius
           Token Factory with NVIDIA Nemotron models · OSS under MIT
         </p>

@@ -100,7 +100,7 @@ function statusStyle(status: RunStatus): { label: string; css: React.CSSProperti
 function StatusBadge({ status }: { status: RunStatus }) {
   const { label, css } = statusStyle(status);
   return (
-    <Badge variant="outline" className="gap-1.5 px-2 py-0.5 text-[11px] font-medium" style={css}>
+    <Badge variant="outline" className="gap-1.5 px-2 py-0.5 text-[13px] font-medium" style={css}>
       {status === "running" || status === "verifying" ? (
         <Loader2 className="size-3 animate-spin" />
       ) : status === "fixing" ? (
@@ -184,7 +184,10 @@ export default function Dashboard() {
   const [selectedId, setSelectedId] = useState<Id<"runs"> | null>(null);
   const [searchParams] = useSearchParams();
   const shapeParam = searchParams.get("shape");
+  // The landing page's live intake hands the repository over as ?repo=.
+  const repoParam = searchParams.get("repo")?.trim() ?? "";
   const [composerOpen, setComposerOpen] = useState(() => {
+    if (repoParam) return true;
     const pb = shapeParam ? findPlaybookByShape(shapeParam) : undefined;
     return Boolean(pb && pb.status === "playable");
   });
@@ -197,15 +200,15 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="hl-canvas min-h-screen">
+    <div className="hl-canvas min-h-svh">
       {/* Workspace header */}
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md">
+      <header className="sticky top-0 z-40 bg-background">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-4">
             <HeirloomLogo />
             <Badge
               variant="outline"
-              className="hidden px-2 py-0.5 text-[11px] font-medium sm:inline-flex"
+              className="hidden px-2 py-0.5 text-[13px] font-medium sm:inline-flex"
               style={{
                 color: "var(--heirloom-accent-strong)",
                 borderColor: "var(--heirloom-accent)",
@@ -255,6 +258,7 @@ export default function Dashboard() {
             }
             scenarios={scenarios.map((s) => ({ key: s.key, label: s.label, blurb: s.blurb }))}
             liveMode={Boolean(config?.liveMode)}
+            initialRepo={repoParam}
             onCreated={(id) => setSelectedId(id)}
           >
             <Button className="gap-2">
@@ -292,7 +296,7 @@ export default function Dashboard() {
         {/* Mobile run picker: the desktop list column is hidden below lg */}
         {runs.length > 0 && (
           <div className="mt-6 lg:hidden">
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Selected run</p>
+            <p className="mb-1.5 text-[13px] font-medium text-muted-foreground">Selected run</p>
             <Select
               value={activeRun?._id ?? ""}
               onValueChange={(value) => setSelectedId(value as Id<"runs">)}
@@ -317,7 +321,7 @@ export default function Dashboard() {
           <section aria-label="Runs" className="hidden flex-col gap-3 lg:flex">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-sm font-semibold">Runs</h2>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-[13px] text-muted-foreground">
                 {runs.length} total
               </span>
             </div>
@@ -330,7 +334,7 @@ export default function Dashboard() {
                   <Github className="size-5" />
                 </div>
                 <p className="text-sm font-medium">No takeovers yet</p>
-                <p className="text-xs leading-5 text-muted-foreground">
+                <p className="text-[13px] leading-5 text-muted-foreground">
                   Hand over your first inherited repo and watch the agent earn
                   its keep.
                 </p>
@@ -352,10 +356,10 @@ export default function Dashboard() {
                       </p>
                       <StatusBadge status={run.status} />
                     </div>
-                    <p className="hl-terminal mt-1.5 truncate text-[11px] text-muted-foreground">
+                    <p className="hl-terminal mt-1.5 truncate text-[13px] text-muted-foreground">
                       {run.repoUrl}
                     </p>
-                    <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
+                    <div className="mt-3 flex items-center gap-3 text-[13px] text-muted-foreground">
                       <span className="inline-flex items-center gap-1.5">
                         <span
                           className="inline-block size-1.5 rounded-full"
@@ -416,18 +420,10 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="hl-card p-4 sm:p-5">
-      <div className="flex items-center gap-2.5">
-        <div
-          className="flex size-8 items-center justify-center rounded-lg"
-          style={{ background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }}
-        >
-          <Icon className="size-4" />
-        </div>
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      </div>
-      <p className="hl-terminal mt-3 text-2xl font-semibold tracking-tight">{value}</p>
-      {sub && <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>}
+    <div className="hl-card p-4 sm:p-5" data-icon={Icon.displayName}>
+      <span className="text-[15px] text-muted-foreground">{label}</span>
+      <p className="hl-terminal mt-2 text-4xl font-semibold tracking-tight">{value}</p>
+      {sub && <p className="mt-1 text-[13px] text-muted-foreground">{sub}</p>}
     </div>
   );
 }
@@ -440,6 +436,7 @@ function NewRunDialog({
   scenarios,
   onCreated,
   initialShape = "",
+  initialRepo = "",
   liveMode,
   children,
 }: {
@@ -448,12 +445,15 @@ function NewRunDialog({
   scenarios: { key: string; label: string; blurb: string }[];
   onCreated: (id: Id<"runs">) => void;
   initialShape?: string;
+  initialRepo?: string;
   liveMode: boolean;
   children: React.ReactNode;
 }) {
   const create = useMutation(api.runs.create);
   const [name, setName] = useState("");
-  const [repoUrl, setRepoUrl] = useState("");
+  const [repoUrl, setRepoUrl] = useState(
+    initialRepo && !/github\.com\//i.test(initialRepo) ? `github.com/${initialRepo}` : initialRepo,
+  );
   const [shape, setShape] = useState(initialShape);
   const [submitting, setSubmitting] = useState(false);
 
@@ -533,12 +533,12 @@ function NewRunDialog({
                   {scenarios.map((s) => (
                     <SelectItem key={s.key} value={s.key}>
                       <span className="font-medium">{s.label}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">{s.blurb}</span>
+                      <span className="ml-2 text-[13px] text-muted-foreground">{s.blurb}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs leading-5 text-muted-foreground">
+              <p className="text-[13px] leading-5 text-muted-foreground">
                 The shape tunes the loop&apos;s expectations: what a boot failure
                 looks like, which fixes are on the table, and when to stop
                 honestly.
@@ -679,7 +679,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
               <h2 className="text-lg font-semibold tracking-tight">{run.name}</h2>
               <StatusBadge status={run.status} />
             </div>
-            <p className="hl-terminal mt-1.5 text-xs text-muted-foreground">{run.repoUrl}</p>
+            <p className="hl-terminal mt-1.5 text-[13px] text-muted-foreground">{run.repoUrl}</p>
           </div>
           <div className="flex items-center gap-2">
             {run.health && (
@@ -691,7 +691,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
               >
                 <Badge
                   variant="outline"
-                  className="gap-1.5 px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80"
+                  className="gap-1.5 px-2.5 py-1 text-[13px] font-medium transition-opacity hover:opacity-80"
                   style={{
                     color: run.health.status === "live" ? "var(--heirloom-accent-strong)" : "var(--muted-foreground)",
                     borderColor: run.health.status === "live" ? "var(--heirloom-accent)" : "var(--border)",
@@ -776,10 +776,10 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
         {/* Feed */}
         <TabsContent value="feed" className="mt-4">
           <div className="hl-card overflow-hidden">
-            <div className="flex items-center justify-between border-b border-border/70 px-5 py-3.5">
+            <div className="flex items-center justify-between px-5 py-3.5">
               <p className="text-sm font-medium">Agent loop</p>
               {isLive && (
-                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
                   <span
                     className="hl-blink inline-block size-1.5 rounded-full"
                     style={{ background: "var(--heirloom-accent)" }}
@@ -807,7 +807,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-medium">{step.title}</p>
                         <span
-                          className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+                          className="rounded px-1.5 py-0.5 text-[13px] font-medium"
                           style={
                             /nano/i.test(step.model)
                               ? { background: "var(--muted)", color: "var(--muted-foreground)" }
@@ -816,7 +816,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                         >
                           {/nano/i.test(step.model) ? "nano" : /ultra/i.test(step.model) ? "ultra" : "model"}
                         </span>
-                        <span className="hl-terminal ml-auto text-[10px] text-muted-foreground">
+                        <span className="hl-terminal ml-auto text-[13px] text-muted-foreground">
                           {step.tokens.toLocaleString()} tok · {fmtTime(step.at)}
                         </span>
                       </div>
@@ -832,9 +832,9 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
         {/* Evidence */}
         <TabsContent value="evidence" className="mt-4">
           <div className="hl-card overflow-hidden">
-            <div className="flex items-center justify-between border-b border-border/70 px-5 py-3.5">
+            <div className="flex items-center justify-between px-5 py-3.5">
               <p className="text-sm font-medium">Evidence ledger</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 {evidence.filter((e) => e.verdict === "verified").length} verified ·{" "}
                 {evidence.filter((e) => e.verdict === "unverified").length} unverified ·{" "}
                 {evidence.filter((e) => e.verdict === "contradicted").length} contradicted
@@ -853,7 +853,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                       <div className="flex items-start justify-between gap-3">
                         <p className="text-sm leading-6">{e.claim}</p>
                         <span
-                          className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[13px] font-medium"
                           style={
                             e.verdict === "verified"
                               ? { background: "var(--heirloom-accent-soft)", color: "var(--heirloom-accent-strong)" }
@@ -872,7 +872,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                           {e.verdict}
                         </span>
                       </div>
-                      <div className="hl-terminal mt-2 rounded-md border border-border/60 bg-muted/50 px-3 py-2 text-[11.5px] leading-5">
+                      <div className="hl-code mt-2 rounded-[var(--radius)] bg-muted px-3 py-2 leading-5">
                         <p className="text-muted-foreground">
                           <span className="text-foreground/60">$</span> {e.command}
                         </p>
@@ -892,9 +892,9 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
         {/* Dependency intel */}
         <TabsContent value="deps" className="mt-4">
           <div className="hl-card overflow-hidden">
-            <div className="flex items-center justify-between border-b border-border/70 px-5 py-3.5">
+            <div className="flex items-center justify-between px-5 py-3.5">
               <p className="text-sm font-medium">Dependency intel</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 {researching
                   ? "researching with Tavily…"
                   : deps.some((d) => d.state === "pending" || !d.latest)
@@ -913,7 +913,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border/70 text-left text-xs text-muted-foreground">
+                    <tr className=" text-left text-[13px] text-muted-foreground">
                       <th className="px-5 py-2.5 font-medium">Package</th>
                       <th className="px-3 py-2.5 font-medium">Installed</th>
                       <th className="px-3 py-2.5 font-medium">Latest</th>
@@ -929,7 +929,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                         <td className="hl-terminal px-3 py-3 text-muted-foreground">{d.latest}</td>
                         <td className="px-3 py-3">
                           <span
-                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[13px] font-medium"
                             style={
                               d.state === "pending"
                                 ? { background: "var(--muted)", color: "var(--muted-foreground)" }
@@ -943,7 +943,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                             {d.state}
                           </span>
                         </td>
-                        <td className="px-5 py-3 text-xs leading-5 text-muted-foreground">{d.note}</td>
+                        <td className="px-5 py-3 text-[13px] leading-5 text-muted-foreground">{d.note}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -972,7 +972,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
               emptyHint="The pack assembles from the run's own record: procedures from the survey, risks from the ledger. Start a takeover to fill it."
             />
             {draftNote && (
-              <p className="text-xs leading-5" style={{ color: "var(--heirloom-amber)" }}>
+              <p className="text-[13px] leading-5" style={{ color: "var(--heirloom-amber)" }}>
                 {draftNote}
               </p>
             )}
@@ -988,7 +988,7 @@ function RunDetail({ runId }: { runId: Id<"runs"> }) {
                     </div>
                     <div>
                       <p className="text-sm font-semibold">Health probe live</p>
-                      <p className="hl-terminal mt-0.5 text-xs text-muted-foreground">
+                      <p className="hl-terminal mt-0.5 text-[13px] text-muted-foreground">
                         {run.health.url} · {run.health.httpCode} · {run.health.latencyMs} ms
                       </p>
                     </div>
@@ -1021,9 +1021,9 @@ function RunMeta({
 }) {
   return (
     <div className="rounded-lg border border-border/60 bg-muted/40 px-3.5 py-3">
-      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
       <p className={`mt-1 text-sm font-semibold ${mono ? "hl-terminal" : ""}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
+      {sub && <p className="mt-0.5 text-[13px] text-muted-foreground">{sub}</p>}
     </div>
   );
 }

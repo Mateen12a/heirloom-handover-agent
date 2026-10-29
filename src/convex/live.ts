@@ -595,7 +595,7 @@ export const runLive = internalAction({
         runId, userId, seq: seq++, title: "Run strategy",
         detail: strategy
           ? `Resolved from ${strategy.source}: ${strategy.label}.`
-          : `The sandbox is configured, but the repository declares no root dependency manifest and no runnable test strategy (execution stays static).${nestedManifestNote}`,
+          : `The sandbox is configured, but no runnable test strategy was found: no test script, CI test step or recognised test runner at the root (execution stays static).${nestedManifestNote}`,
         model: NEBIUS_FAST_MODEL, tokens: 0, status: "ok", at: at(),
       });
     }
@@ -1027,7 +1027,7 @@ Convention matches are the files a runner would pick up.`
       repair = { state: "static", cycle: 0, commands: [], execLine };
     } else if (!strategy) {
       execLine =
-        "The repository declares no root dependency manifest and no runnable test strategy, so the sandbox stayed unused and verification is static." +
+        "No runnable test strategy was found (no test script, CI test step or recognised test runner at the root), so the sandbox stayed unused and verification is static." +
         (nestedManifestFiles.length > 0
           ? ` Nested manifests exist in the tree: ${nestedManifestFiles.slice(0, 5).join(", ")}.`
           : "");

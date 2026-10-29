@@ -52,7 +52,7 @@ function CardHead({
   meta?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-5 py-3.5">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
       <div className="flex items-center gap-2.5">
         <Icon className="size-4 text-muted-foreground" />
         <p className="text-sm font-medium">{title}</p>
@@ -133,7 +133,7 @@ export function HandoverPackView({
       <div className="hl-card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold">Handover pack</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
             {pack.counts.verified} verified · {pack.counts.unverified} unverified ·{" "}
             {pack.counts.contradicted} contradicted · {pack.ledger.length} recorded command
             {pack.ledger.length === 1 ? "" : "s"}
@@ -160,7 +160,7 @@ export function HandoverPackView({
             <div className="flex flex-wrap items-center gap-2">
               <Badge
                 variant="outline"
-                className="px-2 py-0.5 text-[11px] font-medium"
+                className="px-2 py-0.5 text-[13px] font-medium"
                 style={
                   pack.executive.origin === "nemotron"
                     ? {
@@ -199,14 +199,14 @@ export function HandoverPackView({
         <CardHead
           icon={BookOpen}
           title="Runbook"
-          meta={<span className="text-xs text-muted-foreground">{pack.runbook.length} procedures</span>}
+          meta={<span className="text-[13px] text-muted-foreground">{pack.runbook.length} procedures</span>}
         />
         <ol className="divide-y divide-border/60">
           {pack.runbook.map((p, i) => (
             <li key={`${p.title}-${i}`} className="px-5 py-4">
               <div className="flex items-start gap-3">
-                <span className="hl-terminal mt-0.5 text-xs text-muted-foreground">
-                  {String(i + 1).padStart(2, "0")}
+                <span className="hl-terminal mt-0.5 text-[13px] text-muted-foreground">
+                  {i + 1}.
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{p.title}</p>
@@ -214,12 +214,12 @@ export function HandoverPackView({
                     {p.detail}
                   </p>
                   {p.command && (
-                    <p className="hl-terminal mt-2 inline-block rounded-md border border-border/60 bg-muted/50 px-2.5 py-1.5 text-[11.5px]">
+                    <p className="hl-code mt-2 inline-block rounded-[var(--radius)] bg-muted px-2.5 py-1.5 text-[13px]">
                       <span className="text-foreground/60">$</span> {p.command}
                     </p>
                   )}
                   {p.proof && (
-                    <p className="mt-1.5 text-[11px] text-muted-foreground">Proof: {p.proof}</p>
+                    <p className="mt-1.5 text-[13px] text-muted-foreground">Proof: {p.proof}</p>
                   )}
                 </div>
               </div>
@@ -234,7 +234,7 @@ export function HandoverPackView({
         <dl className="grid gap-x-6 gap-y-3 px-5 py-4 sm:grid-cols-2">
           {pack.architecture.map((f) => (
             <div key={f.label} className="min-w-0">
-              <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <dt className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">
                 {f.label}
               </dt>
               <dd className="mt-0.5 text-sm leading-6">{f.value}</dd>
@@ -242,8 +242,8 @@ export function HandoverPackView({
           ))}
         </dl>
         {pack.entryPoints.length > 0 && (
-          <div className="border-t border-border/60 px-5 py-3.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className=" px-5 py-3.5">
+            <p className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">
               Entry points
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -251,7 +251,7 @@ export function HandoverPackView({
                 <Badge
                   key={e}
                   variant="outline"
-                  className="hl-terminal border-border/80 px-2 py-0.5 text-[11px] font-normal"
+                  className="hl-terminal border-border/80 px-2 py-0.5 text-[13px] font-normal"
                 >
                   {e}
                 </Badge>
@@ -267,7 +267,7 @@ export function HandoverPackView({
           <CardHead
             icon={FileCheck2}
             title="Onboarding plan"
-            meta={<span className="text-xs text-muted-foreground">written by Nemotron from the survey</span>}
+            meta={<span className="text-[13px] text-muted-foreground">written by Nemotron from the survey</span>}
           />
           <p className="whitespace-pre-wrap px-5 py-4 text-sm leading-6 text-foreground/90">
             {pack.onboardingPlan}
@@ -281,7 +281,7 @@ export function HandoverPackView({
           icon={TriangleAlert}
           title="Risk register"
           meta={
-            <span className="text-xs text-muted-foreground">
+            <span className="text-[13px] text-muted-foreground">
               {pack.risks.length === 0 ? "nothing unresolved" : `${pack.risks.length} open`}
             </span>
           }
@@ -298,7 +298,7 @@ export function HandoverPackView({
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm leading-6">{r.title}</p>
                   <span
-                    className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[13px] font-medium"
                     style={severityStyle[r.severity].css}
                   >
                     {r.severity === "low" ? (
@@ -313,7 +313,7 @@ export function HandoverPackView({
                   {r.detail}
                 </p>
                 {r.proof && (
-                  <p className="hl-terminal mt-2 truncate text-[11.5px] text-muted-foreground">
+                  <p className="hl-code mt-2 truncate text-[13px] text-muted-foreground">
                     $ {r.proof}
                   </p>
                 )}
@@ -322,7 +322,7 @@ export function HandoverPackView({
           </ul>
         )}
         {unresolved === 0 && pack.risks.length > 0 && (
-          <p className="border-t border-border/60 px-5 py-3 text-xs text-muted-foreground">
+          <p className=" px-5 py-3 text-[13px] text-muted-foreground">
             Risks here come from dependency research and failed steps; every probe claim verified.
           </p>
         )}

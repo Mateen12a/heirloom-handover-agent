@@ -42,117 +42,77 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* CHANGE VALUES FOR THEME: Heirloom, light-first, emerald accent, violet support */
+/* Heirloom theme: navy ink on white paper, one tangerine action, square
+   corners, surfaces separated by tone steps (no lines, shadows or gradients).
+   Verdict colours (verified / unverified / contradicted) are product
+   semantics and stay. */
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.988 0.003 250);
-  --foreground: oklch(0.21 0.05 268);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.05 268);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.05 268);
-  --primary: oklch(0.5 0.128 161.5);
-  --primary-foreground: oklch(0.985 0.005 155);
-  --secondary: oklch(0.955 0.006 265);
-  --secondary-foreground: oklch(0.32 0.06 268);
-  --muted: oklch(0.952 0.006 265);
-  --muted-foreground: oklch(0.5 0.035 265);
-  --accent: oklch(0.945 0.02 290);
-  --accent-foreground: oklch(0.38 0.11 293);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.912 0.008 265);
-  --input: oklch(0.912 0.008 265);
-  --ring: oklch(0.5 0.128 161.5);
-  --chart-1: oklch(0.58 0.14 162);
-  --chart-2: oklch(0.55 0.22 293);
-  --chart-3: oklch(0.62 0.16 232);
-  --chart-4: oklch(0.76 0.16 72);
-  --chart-5: oklch(0.62 0.22 15);
-  --sidebar: oklch(0.975 0.004 260);
-  --sidebar-foreground: oklch(0.21 0.05 268);
-  --sidebar-primary: oklch(0.5 0.128 161.5);
-  --sidebar-primary-foreground: oklch(0.985 0.005 155);
-  --sidebar-accent: oklch(0.945 0.02 290);
-  --sidebar-accent-foreground: oklch(0.38 0.11 293);
-  --sidebar-border: oklch(0.912 0.008 265);
-  --sidebar-ring: oklch(0.5 0.128 161.5);
+  --radius: 0.25rem;
+  --background: #ffffff;
+  --foreground: #1f2b4d;
+  --card: #ffffff;
+  --card-foreground: #1f2b4d;
+  --popover: #ffffff;
+  --popover-foreground: #1f2b4d;
+  --primary: #1f2b4d;
+  --primary-foreground: #ffffff;
+  --secondary: #eceae5;
+  --secondary-foreground: #1f2b4d;
+  --muted: #f4f4f2;
+  --muted-foreground: #5a6178;
+  --accent: #eceae5;
+  --accent-foreground: #1f2b4d;
+  --destructive: #b3261e;
+  --border: #e3e1dc;
+  --input: #d6d3cc;
+  --ring: #1f2b4d;
+  --chart-1: #1f2b4d;
+  --chart-2: #f7941d;
+  --chart-3: #1f7a4d;
+  --chart-4: #8a5a00;
+  --chart-5: #b3261e;
+  --sidebar: #f4f4f2;
+  --sidebar-foreground: #1f2b4d;
+  --sidebar-primary: #1f2b4d;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eceae5;
+  --sidebar-accent-foreground: #1f2b4d;
+  --sidebar-border: #e3e1dc;
+  --sidebar-ring: #1f2b4d;
 
-  /* Heirloom extras (light) */
-  --heirloom-accent: oklch(0.55 0.135 162);
-  --heirloom-accent-strong: oklch(0.4 0.11 163);
-  --heirloom-accent-soft: oklch(0.94 0.05 163);
-  --heirloom-violet: oklch(0.52 0.2 293);
-  --heirloom-violet-soft: oklch(0.94 0.04 293);
-  --heirloom-cyan: oklch(0.56 0.12 225);
-  --heirloom-amber: oklch(0.72 0.15 72);
-  --heirloom-amber-strong: oklch(0.55 0.12 70);
-  --heirloom-amber-soft: oklch(0.95 0.06 84);
-  --heirloom-red: oklch(0.58 0.21 25);
-  --heirloom-red-soft: oklch(0.94 0.03 18);
-  --heirloom-ink: oklch(0.21 0.05 268);
-  --heirloom-canvas: oklch(0.968 0.006 262);
-  --heirloom-grid: oklch(0.25 0.06 268 / 0.05);
-  --heirloom-grid-strong: oklch(0.25 0.06 268 / 0.085);
-  --heirloom-glow: oklch(0.55 0.135 162 / 0.14);
-  --heirloom-hero-veil: oklch(0.988 0.003 250 / 0.72);
-  --heirloom-hero-veil-2: oklch(0.988 0.003 250 / 0);
-  --heirloom-shadow: 0.25 0.06 268;
-}
+  /* page roles (direction sheet) */
+  --bg: #ffffff;
+  --surface: #f4f4f2;
+  --ink: #1f2b4d;
+  --muted-ink: #5a6178;
+  --action: #f7941d;
+  --action-ink: #1f2b4d;
+  --field-1: #05070a;
+  --field-1-ink: #ffffff;
+  --field-2: #e3e1dc;
+  --field-2-ink: #1f2b4d;
+  --font-text: "Erode", "Iowan Old Style", Georgia, serif;
+  --font-code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --step-small: clamp(0.8125rem, 0.79rem + 0.1vw, 0.875rem);
+  --step-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+  --step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+  --step-head: clamp(2rem, 1.3rem + 3.2vw, 4rem);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
-.dark {
-  --background: oklch(0.152 0.028 269);
-  --foreground: oklch(0.955 0.008 250);
-  --card: oklch(0.192 0.033 269);
-  --card-foreground: oklch(0.955 0.008 250);
-  --popover: oklch(0.2 0.035 269);
-  --popover-foreground: oklch(0.955 0.008 250);
-  --primary: oklch(0.79 0.17 161.8);
-  --primary-foreground: oklch(0.17 0.05 165);
-  --secondary: oklch(0.255 0.038 269);
-  --secondary-foreground: oklch(0.94 0.01 255);
-  --muted: oklch(0.255 0.038 269);
-  --muted-foreground: oklch(0.71 0.026 258);
-  --accent: oklch(0.3 0.06 292);
-  --accent-foreground: oklch(0.9 0.07 293);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.94 0.02 260 / 11%);
-  --input: oklch(0.94 0.02 260 / 14%);
-  --ring: oklch(0.79 0.17 161.8 / 60%);
-  --chart-1: oklch(0.79 0.17 161.8);
-  --chart-2: oklch(0.68 0.21 293);
-  --chart-3: oklch(0.74 0.13 225);
-  --chart-4: oklch(0.82 0.15 78);
-  --chart-5: oklch(0.7 0.19 15);
-  --sidebar: oklch(0.185 0.032 269);
-  --sidebar-foreground: oklch(0.955 0.008 250);
-  --sidebar-primary: oklch(0.79 0.17 161.8);
-  --sidebar-primary-foreground: oklch(0.17 0.05 165);
-  --sidebar-accent: oklch(0.3 0.06 292);
-  --sidebar-accent-foreground: oklch(0.9 0.07 293);
-  --sidebar-border: oklch(0.94 0.02 260 / 11%);
-  --sidebar-ring: oklch(0.79 0.17 161.8 / 60%);
-
-  /* Heirloom extras (dark) */
-  --heirloom-accent: oklch(0.8 0.165 162);
-  --heirloom-accent-strong: oklch(0.88 0.14 163);
-  --heirloom-accent-soft: oklch(0.8 0.165 162 / 0.14);
-  --heirloom-violet: oklch(0.72 0.19 293);
-  --heirloom-violet-soft: oklch(0.72 0.19 293 / 0.16);
-  --heirloom-cyan: oklch(0.78 0.12 220);
-  --heirloom-amber: oklch(0.82 0.14 78);
-  --heirloom-amber-strong: oklch(0.85 0.13 80);
-  --heirloom-amber-soft: oklch(0.82 0.14 78 / 0.16);
-  --heirloom-red: oklch(0.72 0.17 22);
-  --heirloom-red-soft: oklch(0.72 0.17 22 / 0.16);
-  --heirloom-ink: oklch(0.955 0.008 250);
-  --heirloom-canvas: oklch(0.135 0.026 269);
-  --heirloom-grid: oklch(0.85 0.05 200 / 0.05);
-  --heirloom-grid-strong: oklch(0.85 0.05 200 / 0.09);
-  --heirloom-glow: oklch(0.8 0.165 162 / 0.12);
-  --heirloom-glow-2: oklch(0.72 0.19 293 / 0.1);
-  --heirloom-hero-veil: oklch(0.152 0.028 269 / 0.7);
-  --heirloom-hero-veil-2: oklch(0.152 0.028 269 / 0);
-  --heirloom-shadow: 0.1 0.03 269;
+  /* Heirloom app roles */
+  --heirloom-accent: #1f7a4d;
+  --heirloom-accent-strong: #145c38;
+  --heirloom-accent-soft: #e4f1e9;
+  --heirloom-violet: #1f2b4d;
+  --heirloom-violet-soft: #eceae5;
+  --heirloom-cyan: #2b5d8a;
+  --heirloom-amber: #8a5a00;
+  --heirloom-amber-strong: #6e4800;
+  --heirloom-amber-soft: #fbefd6;
+  --heirloom-red: #b3261e;
+  --heirloom-red-soft: #f9e3e1;
+  --heirloom-ink: #1f2b4d;
+  --heirloom-canvas: #f4f4f2;
 }
 
 @layer base {
@@ -164,7 +124,21 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-family: var(--font-text);
+    font-size: 17px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 {
+    letter-spacing: -0.02em;
+  }
+  code, pre, kbd {
+    font-family: var(--font-code);
+    font-size: 0.875em;
+  }
+  ::selection {
+    background: var(--ink);
+    color: #fff;
   }
   button:not([disabled]),
   [role="button"]:not([disabled]) {
@@ -176,49 +150,31 @@
   .hl-canvas {
     background-color: var(--heirloom-canvas);
   }
-  .hl-grid {
-    background-image:
-      linear-gradient(to right, var(--heirloom-grid) 1px, transparent 1px),
-      linear-gradient(to bottom, var(--heirloom-grid) 1px, transparent 1px);
-    background-size: 44px 44px;
-  }
-  .hl-grid-strong {
-    background-image:
-      linear-gradient(to right, var(--heirloom-grid-strong) 1px, transparent 1px),
-      linear-gradient(to bottom, var(--heirloom-grid-strong) 1px, transparent 1px);
-    background-size: 44px 44px;
-  }
-  .hl-hero-fade {
-    background: linear-gradient(to bottom, var(--heirloom-hero-veil), var(--heirloom-hero-veil-2));
-  }
+  /* Surfaces are a flat fill one tone step from what they sit on. */
   .hl-card {
     background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: calc(var(--radius) + 6px);
-    box-shadow:
-      0 1px 2px oklch(var(--heirloom-shadow) / 0.08),
-      0 6px 18px -6px oklch(var(--heirloom-shadow) / 0.14);
+    border-radius: var(--radius);
+  }
+  .hl-canvas .hl-card,
+  .hl-card .hl-card {
+    background: var(--card);
   }
   .hl-card-hover {
-    transition:
-      transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-      box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: background-color 0.2s var(--ease-out);
   }
   .hl-card-hover:hover {
-    transform: translateY(-2px);
-    border-color: color-mix(in oklab, var(--heirloom-accent) 35%, var(--border));
-    box-shadow:
-      0 1px 2px oklch(var(--heirloom-shadow) / 0.08),
-      0 14px 34px -10px oklch(var(--heirloom-shadow) / 0.3);
+    background: #fbfaf7;
   }
+  /* Figures and identifiers: the text face with tabular numerals. Literal
+     commands use <code>, which keeps monospace. */
   .hl-terminal {
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    font-feature-settings: "zero";
+    font-variant-numeric: tabular-nums;
+  }
+  .hl-code {
+    font-family: var(--font-code);
+    font-size: 0.8125rem;
   }
 }
-
-
 
 @keyframes hl-blink {
   0%,
@@ -231,4 +187,9 @@
 }
 .hl-blink {
   animation: hl-blink 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hl-blink {
+    animation: none;
+  }
 }

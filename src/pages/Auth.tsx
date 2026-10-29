@@ -110,13 +110,12 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
   };
 
   return (
-    <div className="hl-canvas relative flex min-h-screen flex-col">
-      <div className="hl-grid pointer-events-none absolute inset-0" aria-hidden="true" />
+    <div className="hl-canvas relative flex min-h-svh flex-col">
 
       {/* Auth Content */}
       <div className="relative flex flex-1 items-center justify-center">
         <div className="flex h-full flex-col items-center justify-center">
-        <Card className="min-w-[350px] pb-0 border shadow-md">
+        <Card className="min-w-[350px] pb-0 border">
           {step === "signIn" ? (
             <>
               <CardHeader className="text-center">
@@ -173,7 +172,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                       <div className="absolute inset-0 flex items-center">
                         <span className="w-full border-t" />
                       </div>
-                      <div className="relative flex justify-center text-xs uppercase">
+                      <div className="relative flex justify-center text-[13px] uppercase">
                         <span className="bg-background px-2 text-muted-foreground">
                           Or
                         </span>
@@ -278,7 +277,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
             </>
           )}
 
-          <div className="py-4 px-6 text-xs text-center text-muted-foreground bg-muted border-t rounded-b-lg">
+          <div className="py-4 px-6 text-[13px] text-center text-muted-foreground bg-muted border-t rounded-b-lg">
             Heirloom Handover Agent · proof-backed handover for inherited
             codebases ·{" "}
             <a
