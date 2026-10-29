@@ -2,15 +2,11 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
-  Activity,
-  Coins,
-  FlaskConical,
   Loader2,
   ShieldCheck,
   Trash2,
   TriangleAlert,
   UserPlus,
-  Users,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -99,8 +95,8 @@ export default function Admin() {
           <TriangleAlert className="mx-auto size-8" style={{ color: "var(--heirloom-amber)" }} />
           <h1 className="mt-4 text-lg font-semibold">Not authorized</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Your account does not have admin access. Ask an existing admin to
-            grant you the admin role from this console.
+            This account is not an admin. Sign in with an email listed in
+            ADMIN_EMAILS, or ask an existing admin to grant you the role.
           </p>
           <Button variant="outline" className="mt-5 w-full" onClick={() => navigate("/dashboard")}>
             Back to workspace
@@ -165,46 +161,41 @@ function BootstrapGate() {
 function AdminConsole() {
   return (
     <div className="hl-canvas min-h-svh">
-      <header className="sticky top-0 z-40 bg-background">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard">
+      <header className="sticky top-3 z-40 px-3 sm:px-4">
+        <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between rounded-full bg-white pl-5 pr-2 shadow-[0_1px_2px_rgba(16,24,40,0.06)] ring-1 ring-black/5">
+          <div className="flex items-center gap-3">
+            <Link to="/">
               <HeirloomLogo />
             </Link>
-            <Badge
-              variant="outline"
-              className="hidden px-2 py-0.5 text-[13px] font-medium sm:inline-flex"
-              style={{
-                color: "var(--heirloom-violet)",
-                borderColor: "var(--heirloom-violet)",
-                background: "var(--heirloom-violet-soft)",
-              }}
-            >
-              Admin console
-            </Badge>
+            <Badge className="hidden bg-[var(--brand-night)] px-2.5 text-white sm:inline-flex">Admin</Badge>
           </div>
-          <Link to="/dashboard" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-            Workspace
-          </Link>
+          <nav className="flex items-center gap-1">
+            <Link to="/sample" className="hidden rounded-full px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:inline-flex">
+              Sample run
+            </Link>
+            <Button asChild size="sm">
+              <Link to="/dashboard">Workspace</Link>
+            </Button>
+          </nav>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Platform administration</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Users, roles, runs and spend, in one view.
+      <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-10 sm:px-6">
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Who is using Heirloom</h1>
+        <p className="mt-2 text-[15px] text-muted-foreground">
+          People, activity, takeovers and spend, live from the database. The seeded sample run is not counted.
         </p>
-        <PlatformStats />
-        <Tabs defaultValue="runs" className="mt-8 gap-0">
+        <Analytics />
+        <Tabs defaultValue="users" className="mt-10 gap-0">
           <TabsList>
-            <TabsTrigger value="runs">Runs</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="users">People</TabsTrigger>
+            <TabsTrigger value="runs">Takeovers</TabsTrigger>
           </TabsList>
-          <TabsContent value="runs" className="mt-4">
-            <RunsTable />
-          </TabsContent>
           <TabsContent value="users" className="mt-4">
             <UsersTable />
+          </TabsContent>
+          <TabsContent value="runs" className="mt-4">
+            <RunsTable />
           </TabsContent>
         </Tabs>
       </main>
@@ -212,35 +203,182 @@ function AdminConsole() {
   );
 }
 
-function PlatformStats() {
-  const overview = useQuery(api.admin.overview);
-  const t = overview?.totals;
-
-  const cards = [
-    { icon: Users, label: "Users", value: t ? String(t.users) : "…", sub: t ? `${t.newUsers24h} joined in 24 h` : undefined },
-    { icon: FlaskConical, label: "Takeovers", value: t ? String(t.runs) : "…", sub: t ? `${t.activeRuns} active now` : undefined },
-    { icon: Activity, label: "Live staging", value: t ? String(t.liveStaging) : "…" },
-    { icon: Coins, label: "Platform spend", value: t ? `$${t.credits.toFixed(2)}` : "…", sub: t ? `${t.tokens.toLocaleString()} tokens` : undefined },
+function Analytics() {
+  const a = useQuery(api.admin.analytics);
+  if (a === undefined) {
+    return (
+      <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="hl-card h-[132px]" />
+        ))}
+      </div>
+    );
+  }
+  const tiles = [
+    {
+      label: "People who used it",
+      value: a.people.total.toLocaleString(),
+      sub: `${a.people.guests} guests · ${a.people.withEmail} with email · ${a.people.new7d} new this week`,
+    },
+    {
+      label: "Active this week",
+      value: a.active.week.toLocaleString(),
+      sub: `${a.active.day} today · ${a.active.month} in 30 days`,
+    },
+    {
+      label: "Takeovers",
+      value: a.takeovers.total.toLocaleString(),
+      sub: `${a.takeovers.week} this week · ${a.people.ranTakeover} people ran one`,
+    },
+    {
+      label: "Inference spend",
+      value: `$${a.spend.credits.toFixed(2)}`,
+      sub: `${a.spend.tokens.toLocaleString()} Nemotron tokens`,
+    },
   ];
-
+  const statuses = ["success", "partial", "failed", "verifying", "running", "fixing", "queued"] as const;
+  const statusTone: Record<string, string> = {
+    success: "var(--brand-ok)",
+    partial: "var(--brand-warn)",
+    failed: "var(--brand-bad)",
+  };
   return (
-    <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {cards.map((c) => (
-        <div key={c.label} className="hl-card p-4 sm:p-5">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex size-8 items-center justify-center rounded-lg"
-              style={{ background: "var(--heirloom-violet-soft)", color: "var(--heirloom-violet)" }}
-            >
-              <c.icon className="size-4" />
-            </div>
-            <span className="text-[13px] font-medium text-muted-foreground">{c.label}</span>
+    <>
+      <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {tiles.map((t) => (
+          <div key={t.label} className="hl-card p-5">
+            <p className="text-[13px] font-medium text-muted-foreground">{t.label}</p>
+            <p className="hl-terminal mt-3 font-[family-name:var(--font-display)] text-4xl font-semibold tracking-tight">{t.value}</p>
+            <p className="mt-2 text-[13px] leading-5 text-muted-foreground">{t.sub}</p>
           </div>
-          <p className="hl-terminal mt-3 text-2xl font-semibold tracking-tight">{c.value}</p>
-          {c.sub && <p className="mt-1 text-[13px] text-muted-foreground">{c.sub}</p>}
+        ))}
+      </div>
+
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <DailyBars title="People active per day" unit="people" days={a.days} pick={(d) => d.people} />
+        <DailyBars title="Takeovers started per day" unit="takeovers" days={a.days} pick={(d) => d.takeovers} />
+      </div>
+
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <div className="hl-card p-5">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-base font-semibold">Outcomes</h2>
+            <span className="text-[13px] text-muted-foreground">
+              {a.takeovers.successRate === null ? "No finished takeovers yet" : `${a.takeovers.successRate}% green`}
+              {a.takeovers.avgSeconds !== null && ` · ${a.takeovers.avgSeconds}s average`}
+            </span>
+          </div>
+          <ul className="mt-4 flex flex-col gap-2.5">
+            {statuses
+              .filter((s) => a.takeovers.byStatus[s])
+              .map((s) => {
+                const n = a.takeovers.byStatus[s];
+                const pct = Math.round((n / Math.max(1, a.takeovers.total)) * 100);
+                return (
+                  <li key={s} className="grid grid-cols-[88px_1fr_56px] items-center gap-3 text-sm">
+                    <span className="capitalize">{s}</span>
+                    <span className="h-2 rounded-full bg-muted">
+                      <span
+                        className="block h-2 rounded-full"
+                        style={{ width: `${pct}%`, background: statusTone[s] ?? "var(--brand-soft-ink)" }}
+                      />
+                    </span>
+                    <span className="hl-terminal text-right text-muted-foreground">{n}</span>
+                  </li>
+                );
+              })}
+            {a.takeovers.total === 0 && <li className="text-sm text-muted-foreground">Nothing has run yet.</li>}
+          </ul>
         </div>
-      ))}
-    </div>
+        <div className="hl-card p-5">
+          <h2 className="text-base font-semibold">Most taken-over repositories</h2>
+          <ol className="mt-4 flex flex-col">
+            {a.topRepos.map((r, i) => (
+              <li key={r.repoUrl} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm odd:bg-muted/60">
+                <span className="truncate">
+                  <span className="hl-terminal mr-2 text-muted-foreground">{i + 1}.</span>
+                  <a href={r.repoUrl} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">
+                    {r.repoUrl.replace("https://github.com/", "")}
+                  </a>
+                </span>
+                <span className="hl-terminal shrink-0 text-muted-foreground">{r.count}×</span>
+              </li>
+            ))}
+            {a.topRepos.length === 0 && <li className="text-sm text-muted-foreground">No repositories yet.</li>}
+          </ol>
+        </div>
+      </div>
+    </>
+  );
+}
+
+type Day = { day: number; people: number; newPeople: number; takeovers: number };
+
+// One series per chart, so no legend: the title names it. Bars rise from a
+// shared baseline with 4px rounded tops; hovering a day shows its value.
+function DailyBars({ title, unit, days, pick }: { title: string; unit: string; days: Day[]; pick: (d: Day) => number }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const values = days.map(pick);
+  const max = Math.max(1, ...values);
+  const total = values.reduce((s, v) => s + v, 0);
+  const label = (ts: number) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric", timeZone: "UTC" });
+  const shown = hover ?? days.length - 1;
+  return (
+    <figure className="hl-card m-0 p-5">
+      <figcaption className="flex items-baseline justify-between gap-3">
+        <span className="text-base font-semibold">{title}</span>
+        <span className="text-[13px] text-muted-foreground">
+          {label(days[shown].day)}: <strong className="hl-terminal font-semibold text-foreground">{values[shown]}</strong> {unit}
+        </span>
+      </figcaption>
+      <div className="relative mt-5 h-40" onMouseLeave={() => setHover(null)}>
+        <div className="absolute inset-x-0 top-0 border-t border-dashed border-border" aria-hidden="true" />
+        <span className="hl-terminal absolute -top-2.5 right-0 bg-card pl-1 text-[12px] text-muted-foreground" aria-hidden="true">
+          {max}
+        </span>
+        <div className="absolute inset-0 flex items-end gap-[2px]" aria-hidden="true">
+          {values.map((v, i) => (
+            <div
+              key={days[i].day}
+              className="flex h-full flex-1 items-end"
+              onMouseEnter={() => setHover(i)}
+            >
+              <div
+                className="w-full rounded-t-[4px] transition-opacity"
+                style={{
+                  height: `${v === 0 ? 0 : Math.max(3, (v / max) * 100)}%`,
+                  background: "var(--brand-chart)",
+                  opacity: hover === null || hover === i ? 1 : 0.45,
+                }}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="absolute inset-x-0 bottom-0 border-t border-border" aria-hidden="true" />
+      </div>
+      <div className="mt-2 flex justify-between text-[12px] text-muted-foreground" aria-hidden="true">
+        <span>{label(days[0].day)}</span>
+        <span>{total} in 14 days</span>
+        <span>{label(days[days.length - 1].day)}</span>
+      </div>
+      <table className="sr-only">
+        <caption>{title}, last 14 days</caption>
+        <thead>
+          <tr>
+            <th>Day</th>
+            <th>{unit}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {days.map((d, i) => (
+            <tr key={d.day}>
+              <td>{label(d.day)}</td>
+              <td>{values[i]}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </figure>
   );
 }
 

@@ -1,19 +1,12 @@
 import { cn } from "@/lib/utils";
 
-/** Heirloom mark: an angular gable (roofline over a hearth) cut from a square. */
+/** Heirloom mark: a navy tile holding one orange record. Same mark as the
+ *  landing page; colours come from the brand tokens. */
 export function HeirloomMark({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 32 32"
-      fill="none"
-      aria-hidden="true"
-      className={cn("size-8", className)}
-    >
-      <rect width="32" height="32" rx="8" className="fill-current" />
-      <path
-        d="M8 23.5V14.4L16 8l8 6.4v9.1h-5.1v-6.1h-5.8v6.1H8Z"
-        className="fill-background"
-      />
+    <svg viewBox="0 0 32 32" fill="none" aria-hidden="true" className={cn("size-8", className)}>
+      <rect width="32" height="32" rx="9" fill="var(--brand-ink)" />
+      <rect x="10" y="10" width="12" height="12" rx="2.5" fill="var(--brand-action)" />
     </svg>
   );
 }
@@ -31,7 +24,7 @@ export function HeirloomLogo({
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <HeirloomMark className={markClassName} />
       {!compact && (
-        <span className="whitespace-nowrap text-[17px] font-semibold tracking-tight">
+        <span className="whitespace-nowrap font-[family-name:var(--font-display)] text-[18px] font-bold tracking-[-0.02em]">
           Heirloom{" "}
           <span className="hidden text-muted-foreground sm:inline">Handover Agent</span>
         </span>

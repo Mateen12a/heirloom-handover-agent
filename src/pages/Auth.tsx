@@ -110,12 +110,29 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
   };
 
   return (
-    <div className="hl-canvas relative flex min-h-svh flex-col">
+    <div className="hl-canvas relative flex min-h-svh">
+      <aside className="relative hidden w-[44%] flex-col justify-between overflow-hidden bg-[var(--brand-night)] p-10 text-white lg:flex">
+        <button type="button" onClick={() => navigate("/")} className="flex w-fit items-center gap-2.5 font-[family-name:var(--font-display)] text-lg font-bold tracking-tight">
+          <span className="relative size-[26px] rounded-[8px] bg-white">
+            <span className="absolute inset-[8px] rounded-[2px] bg-[var(--brand-action)]" />
+          </span>
+          Heirloom
+        </button>
+        <div>
+          <h2 className="max-w-md text-5xl font-semibold leading-[0.98] tracking-[-0.045em]">Every claim, run and verified.</h2>
+          <ul className="mt-8 flex max-w-sm flex-col gap-3 text-[15px] text-white/75">
+            <li className="flex gap-3"><span className="mt-2 size-2 shrink-0 rounded-full bg-[var(--brand-action)]" />Point it at any public GitHub repository.</li>
+            <li className="flex gap-3"><span className="mt-2 size-2 shrink-0 rounded-full bg-[var(--brand-action)]" />Nemotron plans; a sandbox runs the real tests.</li>
+            <li className="flex gap-3"><span className="mt-2 size-2 shrink-0 rounded-full bg-[var(--brand-action)]" />Get a handover pack where every line has a receipt.</li>
+          </ul>
+        </div>
+        <p className="text-[13px] text-white/50">Built on NVIDIA Nemotron and Nebius Token Factory.</p>
+      </aside>
 
       {/* Auth Content */}
-      <div className="relative flex flex-1 items-center justify-center">
+      <div className="relative flex flex-1 items-center justify-center p-4">
         <div className="flex h-full flex-col items-center justify-center">
-        <Card className="min-w-[350px] pb-0 border">
+        <Card className="w-full max-w-[400px] pb-0">
           {step === "signIn" ? (
             <>
               <CardHeader className="text-center">

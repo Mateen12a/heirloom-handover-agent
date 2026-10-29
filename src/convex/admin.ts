@@ -20,6 +20,17 @@ async function requireAdmin(ctx: QueryCtx) {
   return userId;
 }
 
+// Claiming the console is limited to the addresses in ADMIN_EMAILS (comma
+// separated, set in the Convex dashboard). Guests can never claim it.
+function mayClaim(user: { email?: string; isAnonymous?: boolean } | null) {
+  if (!user || user.isAnonymous || !user.email) return false;
+  const allowed = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return allowed.includes(user.email.toLowerCase());
+}
+
 async function countAdmins(ctx: QueryCtx) {
   const users = await ctx.db.query("users").collect();
   return users.filter((u) => u.role === ROLES.ADMIN).length;
@@ -35,7 +46,7 @@ export const overview = query({
     const me = await ctx.db.get(userId);
     const isAdmin = me?.role === ROLES.ADMIN;
     const admins = await countAdmins(ctx);
-    const canBootstrap = !isAdmin && admins === 0;
+    const canBootstrap = !isAdmin && admins === 0 && mayClaim(me);
 
     if (!isAdmin && !canBootstrap) {
       return { canBootstrap: false, isAdmin: false, totals: null, recentRuns: [] };
@@ -146,6 +157,9 @@ export const bootstrapAdmin = mutation({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) throw new Error("Sign in required");
+    if (!mayClaim(await ctx.db.get(userId))) {
+      throw new Error("This account is not on the admin list (ADMIN_EMAILS).");
+    }
     const admins = await countAdmins(ctx);
     if (admins > 0) {
       throw new Error("An admin already exists. Ask them to grant access.");
@@ -217,5 +231,82 @@ export const removeRun = mutation({
       if (row.runId === runId) await ctx.db.delete(row._id);
     }
     await ctx.db.delete(runId);
+  },
+});
+
+// Usage analytics for the console: who has used Heirloom, how often, and what
+// it cost. "Active" means the person started a session or a takeover in the
+// window. The seeded sample run is not usage, so it is left out.
+export const analytics = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const DAY = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const users = await ctx.db.query("users").collect();
+    const sessions = await ctx.db.query("authSessions").collect();
+    const runs = (await ctx.db.query("runs").collect()).filter((r) => !r.isSample);
+
+    // Last activity per person, from sessions and takeovers.
+    const lastSeen = new Map<string, number>();
+    const touch = (id: string, at: number) => lastSeen.set(id, Math.max(lastSeen.get(id) ?? 0, at));
+    for (const s of sessions) touch(s.userId, s._creationTime);
+    for (const r of runs) touch(r.userId, r.startedAt);
+    const activeWithin = (ms: number) => [...lastSeen.values()].filter((t) => t > now - ms).length;
+
+    // Daily series for the last 14 days, oldest first, in UTC days.
+    const today = Math.floor(now / DAY) * DAY;
+    const days = Array.from({ length: 14 }, (_, i) => {
+      const start = today - (13 - i) * DAY;
+      const end = start + DAY;
+      const active = new Set<string>();
+      for (const s of sessions) if (s._creationTime >= start && s._creationTime < end) active.add(s.userId);
+      for (const r of runs) if (r.startedAt >= start && r.startedAt < end) active.add(r.userId);
+      return {
+        day: start,
+        people: active.size,
+        newPeople: users.filter((u) => u._creationTime >= start && u._creationTime < end).length,
+        takeovers: runs.filter((r) => r.startedAt >= start && r.startedAt < end).length,
+      };
+    });
+
+    const byStatus: Record<string, number> = {};
+    for (const r of runs) byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+    const finished = runs.filter((r) => r.finishedAt);
+    const settled = (byStatus.success ?? 0) + (byStatus.failed ?? 0) + (byStatus.partial ?? 0);
+
+    const repoCounts = new Map<string, number>();
+    for (const r of runs) repoCounts.set(r.repoUrl, (repoCounts.get(r.repoUrl) ?? 0) + 1);
+
+    const runners = new Set(runs.map((r) => r.userId));
+    return {
+      people: {
+        total: users.length,
+        guests: users.filter((u) => u.isAnonymous).length,
+        withEmail: users.filter((u) => !u.isAnonymous && u.email).length,
+        admins: users.filter((u) => u.role === ROLES.ADMIN).length,
+        ranTakeover: runners.size,
+        new7d: users.filter((u) => u._creationTime > now - 7 * DAY).length,
+      },
+      active: { day: activeWithin(DAY), week: activeWithin(7 * DAY), month: activeWithin(30 * DAY) },
+      takeovers: {
+        total: runs.length,
+        week: runs.filter((r) => r.startedAt > now - 7 * DAY).length,
+        byStatus,
+        successRate: settled ? Math.round(((byStatus.success ?? 0) / settled) * 100) : null,
+        avgSeconds: finished.length
+          ? Math.round(finished.reduce((a, r) => a + (r.finishedAt! - r.startedAt), 0) / finished.length / 1000)
+          : null,
+      },
+      spend: {
+        tokens: runs.reduce((a, r) => a + r.tokensUsed, 0),
+        credits: Math.round(runs.reduce((a, r) => a + r.creditsUsed, 0) * 100) / 100,
+      },
+      days,
+      topRepos: [...repoCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([repoUrl, count]) => ({ repoUrl, count })),
+    };
   },
 });

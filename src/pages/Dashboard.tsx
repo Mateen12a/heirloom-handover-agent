@@ -202,8 +202,8 @@ export default function Dashboard() {
   return (
     <div className="hl-canvas min-h-svh">
       {/* Workspace header */}
-      <header className="sticky top-0 z-40 bg-background">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
+      <header className="sticky top-3 z-40 px-3 sm:px-4">
+        <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between rounded-full bg-white pl-5 pr-2 shadow-[0_1px_2px_rgba(16,24,40,0.06)] ring-1 ring-black/5">
           <div className="flex items-center gap-4">
             <HeirloomLogo />
             <Badge

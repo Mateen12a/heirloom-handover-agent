@@ -3,20 +3,20 @@
    the action only. */
 
 .lp {
-  --night: #0d1424;
-  --night-2: #16203a;
-  --page: #f3f4f1;
-  --white: #ffffff;
-  --ink: #1f2b4d;
-  --soft: #5a6178;
+  --night: var(--brand-night);
+  --night-2: var(--brand-night-2);
+  --page: var(--brand-page);
+  --white: var(--brand-surface);
+  --ink: var(--brand-ink);
+  --soft: var(--brand-soft-ink);
   --faint: #b9bdc8;
-  --action: #f7941d;
-  --ok: #1f8a4c;
+  --action: var(--brand-action);
+  --ok: var(--brand-ok);
   --r: 20px;
-  --disp: "Inter Tight", "Inter", system-ui, sans-serif;
+  --disp: var(--brand-font-display);
   background: var(--page);
   color: var(--ink);
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: var(--brand-font-text);
   font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
@@ -43,7 +43,7 @@
   padding: 0 20px;
   border-radius: 999px;
   background: var(--action);
-  color: var(--ink);
+  color: var(--brand-action-ink);
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
@@ -52,7 +52,7 @@
   transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s;
 }
 .lp-btn:hover {
-  background: #ffa43a;
+  background: color-mix(in srgb, var(--action) 82%, white);
   transform: translateY(-1px);
 }
 .lp-btn:active {
@@ -297,7 +297,7 @@ main > section + section {
   font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 1;
-  color: #c46a00;
+  color: color-mix(in srgb, var(--action) 68%, black);
 }
 .lp-stats span {
   display: block;
@@ -324,7 +324,7 @@ main > section + section {
 }
 .lp-screens .shot {
   aspect-ratio: 4 / 3;
-  background: #e9ebe6;
+  background: var(--brand-muted);
   padding: 14px 14px 0;
   overflow: hidden;
 }
@@ -371,14 +371,14 @@ main > section + section {
   padding: 0 16px;
   border-radius: 999px;
   border: 0;
-  background: #e6e8e3;
+  background: var(--brand-muted);
   color: var(--ink);
-  font: 500 14px/1 "Inter", system-ui, sans-serif;
+  font: 500 14px/1 var(--brand-font-text);
   cursor: pointer;
   transition: background-color 0.2s, color 0.2s;
 }
 .lp-tabs button:hover {
-  background: #dcdfd8;
+  background: color-mix(in srgb, var(--brand-muted) 88%, black);
 }
 .lp-tabs button.on {
   background: var(--night);
@@ -450,7 +450,7 @@ main > section + section {
   font-weight: 500;
 }
 .lp-panel .row code {
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--brand-font-code);
   font-size: 12.5px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -464,7 +464,7 @@ main > section + section {
   margin-top: 4px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: #e5f4ea;
+  background: var(--brand-ok-soft);
   color: var(--ok);
   font-size: 12.5px;
   font-weight: 600;
@@ -509,7 +509,7 @@ main > section + section {
   border-radius: 12px;
   background: transparent;
   color: var(--ink);
-  font: 500 15px/1.35 "Inter", system-ui, sans-serif;
+  font: 500 15px/1.35 var(--brand-font-text);
   text-align: left;
   cursor: pointer;
   transition: background-color 0.2s;
@@ -532,11 +532,11 @@ main > section + section {
   font-weight: 700;
 }
 .lp-ledger-card .mark.ok {
-  background: #e5f4ea;
+  background: var(--brand-ok-soft);
   color: var(--ok);
 }
 .lp-ledger-card .mark.miss {
-  background: #eceee9;
+  background: var(--brand-muted);
   color: var(--soft);
 }
 .lp-ledger-card .struck {
@@ -565,7 +565,7 @@ main > section + section {
   padding: 12px 14px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.07);
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--brand-font-code);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
@@ -629,7 +629,7 @@ main > section + section {
   background: rgba(255, 255, 255, 0.08);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
   color: #fff;
-  font: 500 13px/1 "Inter", system-ui, sans-serif;
+  font: 500 13px/1 var(--brand-font-text);
   cursor: pointer;
   transition: background-color 0.2s;
 }
@@ -702,7 +702,7 @@ main > section + section {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: #fdebd5;
+  background: color-mix(in srgb, var(--action) 18%, white);
   position: relative;
 }
 .lp-cards .dot::after {

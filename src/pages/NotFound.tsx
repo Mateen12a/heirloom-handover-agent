@@ -1,26 +1,24 @@
-import { motion } from "framer-motion";
+import { Link } from "react-router";
+import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="min-h-svh flex flex-col"
-    >
-
-      
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <div className="max-w-5xl mx-auto relative px-4">
-          <div className="flex items-center justify-center min-h-[200px]">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
-              <p className="text-lg text-gray-600">Page Not Found</p>
-            </div>
-          </div>
+    <main className="flex min-h-svh items-center justify-center bg-[var(--brand-night)] p-6 text-white">
+      <div className="max-w-lg">
+        <p className="text-[13px] font-medium text-[var(--brand-action)]">404 · unverified</p>
+        <h1 className="mt-3 text-5xl font-semibold leading-none tracking-[-0.045em] sm:text-6xl">This page has no receipt.</h1>
+        <p className="mt-5 text-[17px] text-white/70">
+          We looked for it and found nothing, so we are saying so instead of guessing.
+        </p>
+        <div className="mt-8 flex flex-wrap gap-2">
+          <Button asChild className="bg-[var(--brand-action)] text-[var(--brand-action-ink)] hover:bg-[var(--brand-action)]/90">
+            <Link to="/">Back to Heirloom</Link>
+          </Button>
+          <Button asChild variant="ghost" className="text-white hover:bg-white/10 hover:text-white">
+            <Link to="/sample">See a real run</Link>
+          </Button>
         </div>
       </div>
-    </motion.div>
+    </main>
   );
 }

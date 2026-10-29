@@ -42,78 +42,100 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* Heirloom theme: navy ink on white paper, one tangerine action, square
-   corners, surfaces separated by tone steps (no lines, shadows or gradients).
-   Verdict colours (verified / unverified / contradicted) are product
-   semantics and stay. */
+/* ── BRAND ────────────────────────────────────────────────────────────────
+   Every page reads its colours, type and corner radius from this block:
+   the landing page, the workspace, the sample run, sign-in and the admin
+   console. Change a value here to rebrand the whole product. */
 :root {
-  --radius: 0.875rem;
-  --background: #f3f4f1;
-  --foreground: #1f2b4d;
-  --card: #ffffff;
-  --card-foreground: #1f2b4d;
-  --popover: #ffffff;
-  --popover-foreground: #1f2b4d;
-  --primary: #1f2b4d;
-  --primary-foreground: #ffffff;
-  --secondary: #eceae5;
-  --secondary-foreground: #1f2b4d;
-  --muted: #eceee9;
-  --muted-foreground: #5a6178;
-  --accent: #eceae5;
-  --accent-foreground: #1f2b4d;
-  --destructive: #b3261e;
-  --border: #e3e1dc;
-  --input: #d6d3cc;
-  --ring: #1f2b4d;
-  --chart-1: #1f2b4d;
-  --chart-2: #f7941d;
-  --chart-3: #1f7a4d;
-  --chart-4: #8a5a00;
-  --chart-5: #b3261e;
-  --sidebar: #f4f4f2;
-  --sidebar-foreground: #1f2b4d;
-  --sidebar-primary: #1f2b4d;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eceae5;
-  --sidebar-accent-foreground: #1f2b4d;
-  --sidebar-border: #e3e1dc;
-  --sidebar-ring: #1f2b4d;
+  --brand-ink: #1f2b4d;        /* text, primary buttons, headings */
+  --brand-night: #0d1424;      /* dark panels: hero, receipts, CTAs */
+  --brand-night-2: #16203a;    /* second dark tone */
+  --brand-page: #f3f4f1;       /* page background */
+  --brand-surface: #ffffff;    /* cards */
+  --brand-muted: #eceee9;      /* quiet fills, inputs, hover */
+  --brand-soft-ink: #5a6178;   /* secondary text */
+  --brand-action: #f7941d;     /* the one call to action */
+  --brand-action-ink: #1f2b4d; /* text on the action colour */
+  --brand-chart: #3d63dd;      /* data marks in charts */
+  --brand-ok: #1f7a4d;         /* verified, success */
+  --brand-ok-soft: #e4f1e9;
+  --brand-warn: #8a5a00;       /* fixing, warnings */
+  --brand-warn-soft: #fbefd6;
+  --brand-bad: #b3261e;        /* failed, destructive */
+  --brand-bad-soft: #f9e3e1;
+  --brand-radius: 0.875rem;
+  --brand-font-text: "Inter", system-ui, sans-serif;
+  --brand-font-display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --brand-font-code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
 
-  /* page roles (direction sheet) */
-  --bg: #ffffff;
-  --surface: #f4f4f2;
-  --ink: #1f2b4d;
-  --muted-ink: #5a6178;
-  --action: #f7941d;
-  --action-ink: #1f2b4d;
-  --field-1: #05070a;
+/* Everything below derives from the brand block. */
+:root {
+  --radius: var(--brand-radius);
+  --background: var(--brand-page);
+  --foreground: var(--brand-ink);
+  --card: var(--brand-surface);
+  --card-foreground: var(--brand-ink);
+  --popover: var(--brand-surface);
+  --popover-foreground: var(--brand-ink);
+  --primary: var(--brand-ink);
+  --primary-foreground: #ffffff;
+  --secondary: var(--brand-muted);
+  --secondary-foreground: var(--brand-ink);
+  --muted: var(--brand-muted);
+  --muted-foreground: var(--brand-soft-ink);
+  --accent: var(--brand-muted);
+  --accent-foreground: var(--brand-ink);
+  --destructive: var(--brand-bad);
+  --border: #e3e5df;
+  --input: #d6d9d2;
+  --ring: var(--brand-ink);
+  --chart-1: var(--brand-chart);
+  --chart-2: var(--brand-action);
+  --chart-3: var(--brand-ok);
+  --chart-4: var(--brand-warn);
+  --chart-5: var(--brand-bad);
+  --sidebar: var(--brand-page);
+  --sidebar-foreground: var(--brand-ink);
+  --sidebar-primary: var(--brand-ink);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--brand-muted);
+  --sidebar-accent-foreground: var(--brand-ink);
+  --sidebar-border: #e3e5df;
+  --sidebar-ring: var(--brand-ink);
+
+  --bg: var(--brand-surface);
+  --surface: var(--brand-page);
+  --ink: var(--brand-ink);
+  --muted-ink: var(--brand-soft-ink);
+  --action: var(--brand-action);
+  --action-ink: var(--brand-action-ink);
+  --field-1: var(--brand-night);
   --field-1-ink: #ffffff;
-  --field-2: #e3e1dc;
-  --field-2-ink: #1f2b4d;
-  --font-text: "Inter", system-ui, sans-serif;
-  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
-  --font-code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --field-2: var(--brand-muted);
+  --field-2-ink: var(--brand-ink);
+  --font-text: var(--brand-font-text);
+  --font-display: var(--brand-font-display);
+  --font-code: var(--brand-font-code);
   --step-small: clamp(0.8125rem, 0.79rem + 0.1vw, 0.875rem);
   --step-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
   --step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
   --step-head: clamp(2rem, 1.3rem + 3.2vw, 4rem);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* Heirloom app roles */
-  --heirloom-accent: #1f7a4d;
-  --heirloom-accent-strong: #145c38;
-  --heirloom-accent-soft: #e4f1e9;
-  --heirloom-violet: #1f2b4d;
-  --heirloom-violet-soft: #eceae5;
-  --heirloom-cyan: #2b5d8a;
-  --heirloom-amber: #8a5a00;
-  --heirloom-amber-strong: #6e4800;
-  --heirloom-amber-soft: #fbefd6;
-  --heirloom-red: #b3261e;
-  --heirloom-red-soft: #f9e3e1;
-  --heirloom-ink: #1f2b4d;
-  --heirloom-canvas: #f3f4f1;
+  --heirloom-accent: var(--brand-ok);
+  --heirloom-accent-strong: var(--brand-ok);
+  --heirloom-accent-soft: var(--brand-ok-soft);
+  --heirloom-violet: var(--brand-ink);
+  --heirloom-violet-soft: var(--brand-muted);
+  --heirloom-cyan: var(--brand-chart);
+  --heirloom-amber: var(--brand-warn);
+  --heirloom-amber-strong: var(--brand-warn);
+  --heirloom-amber-soft: var(--brand-warn-soft);
+  --heirloom-red: var(--brand-bad);
+  --heirloom-red-soft: var(--brand-bad-soft);
+  --heirloom-ink: var(--brand-ink);
+  --heirloom-canvas: var(--brand-page);
 }
 
 @layer base {
