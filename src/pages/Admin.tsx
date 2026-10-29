@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
+import { AppShell } from "@/components/AppShell";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -12,7 +13,6 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 
-import { HeirloomLogo } from "@/components/HeirloomLogo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -160,27 +160,8 @@ function BootstrapGate() {
 
 function AdminConsole() {
   return (
-    <div className="hl-canvas min-h-svh">
-      <header className="sticky top-3 z-40 px-3 sm:px-4">
-        <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between rounded-full bg-white pl-5 pr-2 shadow-[0_1px_2px_rgba(16,24,40,0.06)] ring-1 ring-black/5">
-          <div className="flex items-center gap-3">
-            <Link to="/">
-              <HeirloomLogo />
-            </Link>
-            <Badge className="hidden bg-[var(--brand-night)] px-2.5 text-white sm:inline-flex">Admin</Badge>
-          </div>
-          <nav className="flex items-center gap-1">
-            <Link to="/sample" className="hidden rounded-full px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:inline-flex">
-              Sample run
-            </Link>
-            <Button asChild size="sm">
-              <Link to="/dashboard">Workspace</Link>
-            </Button>
-          </nav>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-10 sm:px-6">
+    <AppShell>
+      <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:pt-10">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Who is using Heirloom</h1>
         <p className="mt-2 text-[15px] text-muted-foreground">
           People, activity, takeovers and spend, live from the database. The seeded sample run is not counted.
@@ -199,7 +180,7 @@ function AdminConsole() {
           </TabsContent>
         </Tabs>
       </main>
-    </div>
+    </AppShell>
   );
 }
 

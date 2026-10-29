@@ -1,22 +1,8 @@
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
-
 import { useAuth } from "@/hooks/use-auth";
 import { HeirloomMark } from "@/components/HeirloomLogo";
-import { ArrowRight, Loader2, Mail, UserX } from "lucide-react";
+import { Loader2, Lock, Mail, UserX } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
@@ -24,98 +10,84 @@ interface AuthProps {
   redirectAfterAuth?: string;
 }
 
-function resolveRedirectAfterAuth(
-  returnTo: string | null,
-  fallback = "/dashboard",
-) {
+function resolveRedirectAfterAuth(returnTo: string | null, fallback = "/dashboard") {
   if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
     return returnTo;
   }
   return fallback;
 }
 
+// Convex Auth reports failures as terse server errors; turn the ones a person
+// can act on into plain sentences and never show a raw stack.
+function readable(error: unknown, flow: "signIn" | "signUp"): string {
+  const msg = error instanceof Error ? error.message : String(error);
+  if (/SITE_URL|JWT_PRIVATE_KEY|JWKS/i.test(msg)) {
+    return "Account sign-in isn't configured on the server yet. Continue as a guest for now.";
+  }
+  if (/InvalidSecret|InvalidAccountId|Invalid credentials/i.test(msg)) {
+    return flow === "signIn"
+      ? "That email and password don't match. New here? Switch to Create account."
+      : "Could not create the account. Try signing in instead.";
+  }
+  if (/already exists/i.test(msg)) return "An account with that email already exists. Sign in instead.";
+  if (/Invalid password/i.test(msg)) return "Use a password of at least 8 characters.";
+  if (/TooManyFailedAttempts|rate/i.test(msg)) return "Too many attempts. Wait a minute and try again.";
+  return flow === "signIn" ? "Sign-in failed. Check your details and try again." : "Could not create the account. Try again.";
+}
+
 function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirect = resolveRedirectAfterAuth(
-    searchParams.get("returnTo"),
-    redirectAfterAuth,
-  );
-  const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
-  const [otp, setOtp] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const redirect = resolveRedirectAfterAuth(searchParams.get("returnTo"), redirectAfterAuth);
+  const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
+  const [busy, setBusy] = useState<"password" | "guest" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!authLoading && isAuthenticated) {
-      navigate(redirect);
-    }
+    if (!authLoading && isAuthenticated) navigate(redirect);
   }, [authLoading, isAuthenticated, navigate, redirect]);
-  const handleEmailSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+
+  const handlePassword = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setIsLoading(true);
+    setBusy("password");
     setError(null);
     try {
-      const formData = new FormData(event.currentTarget);
-      await signIn("email-otp", formData);
-      setStep({ email: formData.get("email") as string });
-      setIsLoading(false);
-    } catch (error) {
-      console.error("Email sign-in error:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to send verification code. Please try again.",
-      );
-      setIsLoading(false);
-    }
-  };
-
-  const handleOtpSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsLoading(true);
-    setError(null);
-    try {
-      const formData = new FormData(event.currentTarget);
-      await signIn("email-otp", formData);
-
-      console.log("signed in");
-
+      const form = new FormData(event.currentTarget);
+      form.set("flow", flow);
+      await signIn("password", form);
       navigate(redirect);
-    } catch (error) {
-      console.error("OTP verification error:", error);
-
-      setError("The verification code you entered is incorrect.");
-      setIsLoading(false);
-
-      setOtp("");
+    } catch (err) {
+      console.error("Password sign-in error:", err);
+      setError(readable(err, flow));
+      setBusy(null);
     }
   };
 
-  const handleGuestLogin = async () => {
-    setIsLoading(true);
+  const handleGuest = async () => {
+    setBusy("guest");
     setError(null);
     try {
-      console.log("Attempting anonymous sign in...");
       await signIn("anonymous");
-      console.log("Anonymous sign in successful");
       navigate(redirect);
-    } catch (error) {
-      console.error("Guest login error:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
-      setError(`Failed to sign in as guest: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setIsLoading(false);
+    } catch (err) {
+      console.error("Guest sign-in error:", err);
+      setError("Guest sign-in failed. Try again in a moment.");
+      setBusy(null);
     }
   };
+
+  const isNew = flow === "signUp";
 
   return (
     <div className="hl-canvas relative flex min-h-svh">
       <aside className="relative hidden w-[44%] flex-col justify-between overflow-hidden bg-[var(--brand-night)] p-10 text-white lg:flex">
-        <button type="button" onClick={() => navigate("/")} className="flex w-fit items-center gap-2.5 font-[family-name:var(--font-display)] text-lg font-bold tracking-tight">
-          <span className="relative size-[26px] rounded-[8px] bg-white">
-            <span className="absolute inset-[8px] rounded-[2px] bg-[var(--brand-action)]" />
-          </span>
+        <button
+          type="button"
+          onClick={() => navigate("/")}
+          className="flex w-fit items-center gap-2.5 font-[family-name:var(--font-display)] text-lg font-bold tracking-tight"
+        >
+          <HeirloomMark className="size-7 [&>rect:first-child]:fill-white" />
           Heirloom
         </button>
         <div>
@@ -129,182 +101,80 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
         <p className="text-[13px] text-white/50">Built on NVIDIA Nemotron and Nebius Token Factory.</p>
       </aside>
 
-      {/* Auth Content */}
       <div className="relative flex flex-1 items-center justify-center p-4">
-        <div className="flex h-full flex-col items-center justify-center">
-        <Card className="w-full max-w-[400px] pb-0">
-          {step === "signIn" ? (
-            <>
-              <CardHeader className="text-center">
-              <div className="flex justify-center">
-                    <button
-                      type="button"
-                      aria-label="Back to home"
-                      className="mb-4 mt-4 cursor-pointer transition-opacity hover:opacity-80"
-                      onClick={() => navigate("/")}
-                    >
-                      <HeirloomMark className="size-12 text-foreground" />
-                    </button>
-                  </div>
-                <CardTitle className="text-xl">Welcome back</CardTitle>
-                <CardDescription>
-                  Sign in to Heirloom Handover Agent. Your takeovers, evidence
-                  ledgers and handover packs are waiting.
-                </CardDescription>
-              </CardHeader>
-              <form onSubmit={handleEmailSubmit}>
-                <CardContent>
-                  
-                  <div className="relative flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        name="email"
-                        placeholder="name@example.com"
-                        type="email"
-                        className="pl-9"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      variant="outline"
-                      size="icon"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <ArrowRight className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                  {error && (
-                    <p className="mt-2 text-sm text-red-500">{error}</p>
-                  )}
-                  
-                  <div className="mt-4">
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                      </div>
-                      <div className="relative flex justify-center text-[13px] uppercase">
-                        <span className="bg-background px-2 text-muted-foreground">
-                          Or
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full mt-4"
-                      onClick={handleGuestLogin}
-                      disabled={isLoading}
-                    >
-                      <UserX className="mr-2 h-4 w-4" />
-                      Continue as Guest
-                    </Button>
-                  </div>
-                </CardContent>
-              </form>
-            </>
-          ) : (
-            <>
-              <CardHeader className="text-center mt-4">
-                <CardTitle>Check your email</CardTitle>
-                <CardDescription>
-                  We've sent a code to {step.email}
-                </CardDescription>
-              </CardHeader>
-              <form onSubmit={handleOtpSubmit}>
-                <CardContent className="pb-4">
-                  <input type="hidden" name="email" value={step.email} />
-                  <input type="hidden" name="code" value={otp} />
+        <div className="w-full max-w-[400px] rounded-[22px] bg-card p-7 shadow-[0_1px_2px_rgba(16,24,40,0.05)] sm:p-8">
+          <button type="button" aria-label="Back to home" onClick={() => navigate("/")} className="transition-opacity hover:opacity-80">
+            <HeirloomMark className="size-10" />
+          </button>
+          <h1 className="mt-6 text-2xl font-semibold tracking-tight">{isNew ? "Create your account" : "Welcome back"}</h1>
+          <p className="mt-1.5 text-[14px] leading-6 text-muted-foreground">
+            {isNew
+              ? "Keep your takeovers, evidence ledgers and handover packs under one login."
+              : "Sign in to see your takeovers, evidence ledgers and handover packs."}
+          </p>
 
-                  <div className="flex justify-center">
-                    <InputOTP
-                      value={otp}
-                      onChange={setOtp}
-                      maxLength={6}
-                      disabled={isLoading}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && otp.length === 6 && !isLoading) {
-                          // Find the closest form and submit it
-                          const form = (e.target as HTMLElement).closest("form");
-                          if (form) {
-                            form.requestSubmit();
-                          }
-                        }
-                      }}
-                    >
-                      <InputOTPGroup>
-                        {Array.from({ length: 6 }).map((_, index) => (
-                          <InputOTPSlot key={index} index={index} />
-                        ))}
-                      </InputOTPGroup>
-                    </InputOTP>
-                  </div>
-                  {error && (
-                    <p className="mt-2 text-sm text-red-500 text-center">
-                      {error}
-                    </p>
-                  )}
-                  <p className="text-sm text-muted-foreground text-center mt-4">
-                    Didn't receive a code?{" "}
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto"
-                      onClick={() => setStep("signIn")}
-                    >
-                      Try again
-                    </Button>
-                  </p>
-                </CardContent>
-                <CardFooter className="flex-col gap-2">
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={isLoading || otp.length !== 6}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Verifying...
-                      </>
-                    ) : (
-                      <>
-                        Verify code
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setStep("signIn")}
-                    disabled={isLoading}
-                    className="w-full"
-                  >
-                    Use different email
-                  </Button>
-                </CardFooter>
-              </form>
-            </>
-          )}
-
-          <div className="py-4 px-6 text-[13px] text-center text-muted-foreground bg-muted border-t rounded-b-lg">
-            Heirloom Handover Agent · proof-backed handover for inherited
-            codebases ·{" "}
-            <a
-              href="/"
-              className="underline hover:text-primary transition-colors"
-            >
-              learn more
-            </a>
+          <div role="tablist" aria-label="Account" className="mt-6 grid grid-cols-2 gap-1 rounded-full bg-muted p-1">
+            {(["signIn", "signUp"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                role="tab"
+                aria-selected={flow === f}
+                onClick={() => {
+                  setFlow(f);
+                  setError(null);
+                }}
+                className={`h-9 rounded-full text-[13px] font-medium transition-colors ${flow === f ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {f === "signIn" ? "Sign in" : "Create account"}
+              </button>
+            ))}
           </div>
-        </Card>
+
+          <form onSubmit={handlePassword} className="mt-5 flex flex-col gap-3">
+            <label className="relative block">
+              <span className="sr-only">Email</span>
+              <Mail className="absolute left-3 top-3.5 size-4 text-muted-foreground" />
+              <Input name="email" type="email" autoComplete="email" placeholder="name@example.com" className="pl-9" disabled={busy !== null} required />
+            </label>
+            <label className="relative block">
+              <span className="sr-only">Password</span>
+              <Lock className="absolute left-3 top-3.5 size-4 text-muted-foreground" />
+              <Input
+                name="password"
+                type="password"
+                autoComplete={isNew ? "new-password" : "current-password"}
+                placeholder={isNew ? "Password, 8 characters or more" : "Password"}
+                minLength={8}
+                className="pl-9"
+                disabled={busy !== null}
+                required
+              />
+            </label>
+            {error && (
+              <p role="alert" className="rounded-xl bg-[var(--brand-bad-soft)] px-3 py-2.5 text-[13px] leading-5 text-[var(--brand-bad)]">
+                {error}
+              </p>
+            )}
+            <Button type="submit" size="lg" className="mt-1 w-full" disabled={busy !== null}>
+              {busy === "password" && <Loader2 className="size-4 animate-spin" />}
+              {isNew ? "Create account" : "Sign in"}
+            </Button>
+          </form>
+
+          <div className="my-5 flex items-center gap-3 text-[12px] text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            or
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          <Button type="button" variant="outline" size="lg" className="w-full" onClick={handleGuest} disabled={busy !== null}>
+            {busy === "guest" ? <Loader2 className="size-4 animate-spin" /> : <UserX className="size-4" />}
+            Continue as guest
+          </Button>
+          <p className="mt-3 text-center text-[12px] leading-5 text-muted-foreground">
+            Guests can run takeovers straight away. Runs stay with this browser.
+          </p>
         </div>
       </div>
     </div>

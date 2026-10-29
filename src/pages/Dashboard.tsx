@@ -1,4 +1,5 @@
 import { useAction, useMutation, useQuery } from "convex/react";
+import { AppShell } from "@/components/AppShell";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -19,12 +20,11 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { findPlaybookByShape } from "@/lib/playbooks";
 import { userMessage } from "@/lib/errors";
 
-import { HeirloomLogo } from "@/components/HeirloomLogo";
 import { HandoverPackView, PackDraftButton } from "@/components/HandoverPack";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/hooks/use-auth";
 
 // ── shared bits ────────────────────────────────────────────────────────────
 
@@ -154,13 +153,6 @@ function fmtTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function tierLabel(model?: string | null): string {
-  if (!model) return "Nemotron";
-  if (/nano/i.test(model)) return "Nemotron 3 Nano";
-  if (/ultra/i.test(model)) return "Nemotron 3 Ultra";
-  return model.replace(/^nvidia\//, "");
-}
-
 function fmtDateTime(ts: number): string {
   return new Date(ts).toLocaleString([], {
     month: "short",
@@ -173,8 +165,6 @@ function fmtDateTime(ts: number): string {
 // ── page ───────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
 
   const runs = useQuery(api.runs.list) ?? [];
   const stats = useQuery(api.runs.stats);
@@ -187,49 +177,16 @@ export default function Dashboard() {
   // The landing page's live intake hands the repository over as ?repo=.
   const repoParam = searchParams.get("repo")?.trim() ?? "";
   const [composerOpen, setComposerOpen] = useState(() => {
-    if (repoParam) return true;
+    if (repoParam || searchParams.get("new")) return true;
     const pb = shapeParam ? findPlaybookByShape(shapeParam) : undefined;
     return Boolean(pb && pb.status === "playable");
   });
 
   const activeRun = runs.find((r) => r._id === selectedId) ?? runs[0];
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/");
-  };
-
   return (
-    <div className="hl-canvas min-h-svh">
-      {/* Workspace header */}
-      <header className="sticky top-3 z-40 px-3 sm:px-4">
-        <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between rounded-full bg-white pl-5 pr-2 shadow-[0_1px_2px_rgba(16,24,40,0.06)] ring-1 ring-black/5">
-          <div className="flex items-center gap-4">
-            <HeirloomLogo />
-            <Badge
-              variant="outline"
-              className="hidden px-2 py-0.5 text-[13px] font-medium sm:inline-flex"
-              style={{
-                color: "var(--heirloom-accent-strong)",
-                borderColor: "var(--heirloom-accent)",
-                background: "var(--heirloom-accent-soft)",
-              }}
-            >
-              Token Factory · {tierLabel(config?.modelPlan)}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden max-w-[180px] truncate text-sm text-muted-foreground sm:block">
-              {user?.name || user?.email || "Account"}
-            </span>
-            <Button variant="outline" size="sm" onClick={handleSignOut}>
-              Sign out
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <AppShell onNewTakeover={() => setComposerOpen(true)}>
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:py-8">
         {/* Title row */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -402,7 +359,7 @@ export default function Dashboard() {
           </section>
         </div>
       </main>
-    </div>
+    </AppShell>
   );
 }
 

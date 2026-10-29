@@ -1,11 +1,10 @@
 import { useQuery } from "convex/react";
+import { AppShell } from "@/components/AppShell";
 import { ArrowRight, Check, CircleSlash, FileCheck2, GitBranch, Loader2, ShieldCheck, X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HandoverPackView } from "@/components/HandoverPack";
-import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
 
 function fmtDateTime(ts: number): string {
   return new Date(ts).toLocaleString([], {
@@ -28,10 +27,9 @@ export default function Sample() {
   const data = useQuery(api.runs.sample);
 
   return (
-    <div className="hl-canvas min-h-svh">
-      <SiteHeader />
+    <AppShell>
 
-      <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
+      <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:py-10">
         {data === undefined ? (
           <div className="hl-card flex min-h-[320px] items-center justify-center">
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -315,8 +313,6 @@ export default function Sample() {
           </>
         )}
       </main>
-
-      <SiteFooter />
-    </div>
+    </AppShell>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { AppShell } from "@/components/AppShell";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import {
@@ -21,8 +22,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
 import { PLAYBOOKS, PLAYBOOK_CATEGORIES, type Playbook } from "@/lib/playbooks";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -172,8 +171,7 @@ export default function Catalog() {
   }, [query, category, playableOnly]);
 
   return (
-    <div className="flex min-h-svh flex-col bg-background">
-      <SiteHeader />
+    <AppShell>
 
       <main className="flex-1">
         <section className="relative overflow-hidden">
@@ -285,9 +283,7 @@ export default function Catalog() {
           </div>
         </section>
       </main>
-
-      <SiteFooter />
-    </div>
+    </AppShell>
   );
 }
 
