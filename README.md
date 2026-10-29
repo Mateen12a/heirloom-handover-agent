@@ -82,6 +82,8 @@ Set the backend environment variables with `npx convex env set KEY value`:
 | `TAVILY_API_KEY` | dependency release notes (optional) |
 | `RUNNER_URL` | sandbox runner base URL (optional; enables execution) |
 | `RUNNER_TOKEN` | sandbox runner bearer token (required with `RUNNER_URL`) |
+| `RESEND_API_KEY` | sends email sign-in codes (optional; guest sign-in works without it) |
+| `AUTH_EMAIL_FROM` | sender for sign-in emails (optional) |
 
 Keys live on the Convex deployment only. They are never shipped to the
 browser and the client never sees them.
