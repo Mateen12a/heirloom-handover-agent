@@ -6,74 +6,93 @@ import "./landing.css";
 // sample run (jonschlinkert/is-number), so the page can be checked against
 // /sample. Stage timings come from that run's step timestamps.
 
-const stages = [
-  { name: "Read", ms: 465, time: "Half a second", clause: "First, it reads the tree, the manifest and the lockfile." },
-  { name: "Plan", ms: 1713, time: "Under two seconds", clause: "Then Nemotron Ultra on Nebius plans the takeover." },
-  { name: "Probe", ms: 7961, time: "Eight seconds", clause: "Next, eleven claims are checked on a clean clone." },
-  { name: "Run", ms: 49789, time: "Fifty seconds", clause: "Then the repo's own tests run in a capped sandbox." },
-  { name: "Report", ms: 1617, time: "Under two seconds", clause: "Last, Ultra writes the risk register from the evidence." },
+type Row = [string, string];
+const stages: { name: string; time: string; title: string; body: string; card: { label: string; rows: Row[]; note: string } }[] = [
+  {
+    name: "Read",
+    time: "0.5 s",
+    title: "It reads the repository",
+    body: "The GitHub API, the tree, the manifest and the lockfile. Nothing is assumed from the README.",
+    card: {
+      label: "Intake · jonschlinkert/is-number",
+      rows: [["Branch", "master"], ["Language", "JavaScript"], ["Files", "11 tracked"], ["Idle for", "1,504 days"]],
+      note: "Read from the GitHub API",
+    },
+  },
+  {
+    name: "Plan",
+    time: "1.7 s",
+    title: "Nemotron plans the takeover",
+    body: "NVIDIA Nemotron 3 Ultra on Nebius Token Factory writes the first-day plan. It is screened for unsafe instructions before anyone sees it.",
+    card: {
+      label: "Plan · Nemotron 3 Ultra",
+      rows: [["1", "Clone and list entry points"], ["2", "Install with the lockfile's manager"], ["3", "Run the repo's own tests"], ["4", "Record what cannot be proven"]],
+      note: "Screened · no unsafe steps",
+    },
+  },
+  {
+    name: "Probe",
+    time: "8.0 s",
+    title: "Claims are checked on a clean clone",
+    body: "Eleven deployability claims, each re-checked with a real command. A clone that contradicts the survey is recorded as contradicted.",
+    card: {
+      label: "Probes · 11 claims",
+      rows: [["git clone --depth 1", "exit 0"], ["git ls-files '*test*'", "exit 0"], ["node --version", "exit 0"], ["git ls-files .github/workflows", "none"]],
+      note: "8 verified · 3 unverified",
+    },
+  },
+  {
+    name: "Run",
+    time: "49.8 s",
+    title: "The code runs in a sandbox",
+    body: "Install and test on a capped sandbox. When tests fail, Nemotron proposes fixes that are tokenized and allowlisted. No shell, ever.",
+    card: {
+      label: "Sandbox · capped",
+      rows: [["npm install --no-audit --no-fund", "exit 0"], ["npm run test", "exit 0"], ["Fix cycles", "0 needed"], ["Tests", "passed in 2.5 s"]],
+      note: "Green on a clean clone",
+    },
+  },
+  {
+    name: "Report",
+    time: "1.6 s",
+    title: "You get the handover pack",
+    body: "A runbook, an architecture map and a risk register, where every line links to the command and exit code that proved it.",
+    card: {
+      label: "Risk register",
+      rows: [["High", "No CI workflows"], ["Medium", "No container assets"], ["Medium", "No environment template"], ["Low", "Idle for 1,504 days"]],
+      note: "Each risk carries its evidence",
+    },
+  },
 ];
-const stageFills = ["#ffffff", "#e3e1dc", "#f4f4f2", "#c9c5bc", "#ffffff"];
 
 type Claim = { text: string; cmd: string; ok: boolean };
 const claims: Claim[] = [
-  { text: "the repository answers on branch master", cmd: "GET https://api.github.com/repos/jonschlinkert/is-number", ok: true },
-  { text: "a clean clone succeeds", cmd: "git clone --depth 1 --quiet https://github.com/jonschlinkert/is-number repo", ok: true },
-  { text: "the tree matches the head commit", cmd: "git rev-parse HEAD  ·  git log -1 --format=%cI", ok: true },
-  { text: "a test suite ships with it", cmd: "git ls-files '*test*' '*spec*'", ok: true },
-  { text: "the manifest declares runnable scripts", cmd: "npm pkg get scripts engines workspaces packageManager", ok: true },
-  { text: "an MIT license is on file", cmd: "git ls-files '*LICENSE*' '*License*' '*license*'", ok: true },
-  { text: "the sandbox has the toolchain it needs", cmd: "node --version  ·  npm --version", ok: true },
-  { text: "dependencies install from scratch", cmd: "npm install --no-audit --no-fund", ok: true },
-  { text: "the tests pass", cmd: "npm run test", ok: true },
+  { text: "The repository answers on branch master", cmd: "GET api.github.com/repos/jonschlinkert/is-number", ok: true },
+  { text: "A clean clone succeeds", cmd: "git clone --depth 1 --quiet …/is-number repo", ok: true },
+  { text: "The tree matches the head commit", cmd: "git rev-parse HEAD · git log -1 --format=%cI", ok: true },
+  { text: "A test suite ships with it", cmd: "git ls-files '*test*' '*spec*'", ok: true },
+  { text: "Dependencies install from scratch", cmd: "npm install --no-audit --no-fund", ok: true },
+  { text: "The tests pass", cmd: "npm run test", ok: true },
+  { text: "CI workflows exist", cmd: "git ls-files .github/workflows", ok: false },
+  { text: "Container assets exist", cmd: "git ls-files '*Dockerfile*' '*docker-compose*'", ok: false },
+  { text: "An environment template exists", cmd: "git ls-files '*env.example' '*env.sample'", ok: false },
 ];
-const misses: Claim[] = [
-  { text: "CI workflows", cmd: "git ls-files .github/workflows", ok: false },
-  { text: "container assets", cmd: "git ls-files '*Dockerfile*' '*docker-compose*' '*.devcontainer*'", ok: false },
-  { text: "an environment template", cmd: "git ls-files '*env.example' '*env.sample' '*env.template'", ok: false },
-];
-const allClaims = [...claims, ...misses];
 
-const figures = [
-  { whole: "61", dec: ".6", cap: "seconds from repository intake to the finished risk register" },
-  { whole: "2", dec: ".5", cap: "seconds for the repo's own test suite to pass on a clean clone" },
-  { whole: "8", dec: "", cap: "of 11 deployability claims verified; 3 left unverified" },
-  { whole: "0", dec: ".07", cap: "dollars of Nemotron inference for the whole run" },
-  { whole: "0", dec: "", cap: "claims shipped without a command and an exit code" },
-];
+const statement =
+  "Every inherited repository comes with a README that stopped being true. Heirloom takes it over on the record: it reads the code, runs it in a sandbox, and hands back a manual where every claim carries the command that proved it, and says so when it can't.";
 
 const deliverables = [
-  {
-    phrase: "The runbook",
-    body: "Install, test and boot, written from the commands that actually ran on a clean clone, not from a README that stopped being true years ago.",
-    bg: "#05070a",
-    ink: "#ffffff",
-  },
-  {
-    phrase: "The map",
-    body: "Entry points, workspaces, scripts and the dependencies between them, drawn from the surveyed tree of the repository you handed over.",
-    bg: "#e3e1dc",
-    ink: "#1f2b4d",
-  },
-  {
-    phrase: "The risks",
-    body: "What will bite the next engineer, ranked: no CI, no container, no env template, idle for 1,504 days. Each with the output that proved it.",
-    bg: "#2a3a63",
-    ink: "#ffffff",
-  },
-  {
-    phrase: "The ledger",
-    body: "Every claim, its command, its output and its exit code. Unproven claims say so. Claims a clean clone contradicts stay on the record.",
-    bg: "#f4f4f2",
-    ink: "#1f2b4d",
-  },
+  { title: "Runbook", body: "Install, test and boot, written from commands that actually ran on a clean clone." },
+  { title: "Architecture map", body: "Entry points, workspaces, scripts and dependencies from the surveyed tree." },
+  { title: "Risk register", body: "What will bite the next engineer, ranked, each with the output that proved it." },
+  { title: "Evidence ledger", body: "Every claim, its command, its output and its exit code. Unproven claims say so." },
 ];
 
 const examples = ["jonschlinkert/kind-of", "tj/commander.js", "expressjs/morgan"];
 
 function useReveal() {
   useEffect(() => {
-    const els = document.querySelectorAll<HTMLElement>(".lp-in, .lp-bar");
+    const els = document.querySelectorAll<HTMLElement>(".lp-in");
     if (!("IntersectionObserver" in window)) {
       els.forEach((el) => el.classList.add("is-in"));
       return;
@@ -87,11 +106,180 @@ function useReveal() {
           }
         }
       },
-      { rootMargin: "0px 0px -12% 0px" },
+      { rootMargin: "0px 0px -10% 0px" },
     );
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
   }, []);
+}
+
+// Isometric stack of file blocks, the repository as an object: drawn in
+// outline, with the run's orbit traced around it.
+function RepoDrawing() {
+  const blocks: [number, number, number][] = [];
+  for (let z = 0; z < 3; z++)
+    for (let x = 0; x < 4 - z; x++)
+      for (let y = 0; y < 3 - z; y++) blocks.push([x, y, z]);
+  const iso = (x: number, y: number, z: number) => [380 + (x - y) * 52, 250 + (x + y) * 30 - z * 58];
+  const pts = (a: number[][]) => a.map((p) => p.join(",")).join(" ");
+  return (
+    <svg className="lp-draw" viewBox="0 0 760 520" aria-hidden="true">
+      <ellipse className="orbit" cx="380" cy="330" rx="330" ry="120" />
+      {blocks.map(([x, y, z], i) => {
+        const t = [iso(x, y, z + 1), iso(x + 1, y, z + 1), iso(x + 1, y + 1, z + 1), iso(x, y + 1, z + 1)];
+        const l = [iso(x, y + 1, z + 1), iso(x + 1, y + 1, z + 1), iso(x + 1, y + 1, z), iso(x, y + 1, z)];
+        const r = [iso(x + 1, y, z + 1), iso(x + 1, y + 1, z + 1), iso(x + 1, y + 1, z), iso(x + 1, y, z)];
+        return (
+          <g key={i} className="blk" style={{ "--i": i } as React.CSSProperties}>
+            <polygon points={pts(l)} className="l" />
+            <polygon points={pts(r)} className="r" />
+            <polygon points={pts(t)} className="t" />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function LiveChip() {
+  const steps = ["Reading the tree…", "Planning with Nemotron…", "Probing 11 claims…", "Running the tests…", "8 of 11 claims verified"];
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = setInterval(() => setI((n) => (n + 1) % steps.length), 1800);
+    return () => clearInterval(id);
+  }, [steps.length]);
+  return (
+    <div className="lp-chip" aria-hidden="true">
+      <span className={`dot${i === steps.length - 1 ? " ok" : ""}`} />
+      <span>
+        <strong>Live takeover</strong>
+        <br />
+        {steps[i]}
+      </span>
+    </div>
+  );
+}
+
+function Statement() {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const words = statement.split(" ");
+  const [lit, setLit] = useState(words.length);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const on = () => {
+      const el = ref.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const p = Math.min(1, Math.max(0, (vh * 0.85 - r.top) / (r.height + vh * 0.35)));
+      setLit(Math.round(p * words.length));
+    };
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, [words.length]);
+  return (
+    <p ref={ref} className="lp-statement">
+      {words.map((w, i) => (
+        <span key={i} className={i < lit ? "on" : undefined}>
+          {w}{" "}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+function HowItWorks() {
+  const [tab, setTab] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  useEffect(() => {
+    if (!playing || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = setTimeout(() => setTab((t) => (t + 1) % stages.length), 5200);
+    return () => clearTimeout(id);
+  }, [tab, playing]);
+  const s = stages[tab];
+  return (
+    <section id="how" className="lp-wrap lp-how" aria-labelledby="how-title">
+      <h2 id="how-title" className="lp-h2 lp-in">How it works</h2>
+      <div className="lp-tabs lp-in" role="tablist" aria-label="Stages of a takeover">
+        {stages.map((st, i) => (
+          <button
+            key={st.name}
+            role="tab"
+            aria-selected={tab === i}
+            className={tab === i ? "on" : undefined}
+            onClick={() => {
+              setTab(i);
+              setPlaying(false);
+            }}
+          >
+            {st.name}
+          </button>
+        ))}
+        <button className="pp" aria-label={playing ? "Pause the tour" : "Play the tour"} onClick={() => setPlaying((p) => !p)}>
+          {playing ? "❚❚" : "▶"}
+        </button>
+      </div>
+      <div className="lp-panel" role="tabpanel" key={tab}>
+        <div className="txt">
+          <span className="time">Stage {tab + 1} of 5 · {s.time} on the sample run</span>
+          <h3>{s.title}</h3>
+          <p>{s.body}</p>
+        </div>
+        <div className="ui">
+          <span className="lbl">{s.card.label}</span>
+          {s.card.rows.map(([a, b]) => (
+            <div key={a} className="row">
+              <code>{a}</code>
+              <span className={/exit 0|passed|0 needed|master|JavaScript/.test(b) ? "ok" : undefined}>{b}</span>
+            </div>
+          ))}
+          <span className="pill">{s.card.note}</span>
+        </div>
+      </div>
+      {playing && <div className="lp-progress" key={`p${tab}`} aria-hidden="true" />}
+    </section>
+  );
+}
+
+function Ledger() {
+  const [sel, setSel] = useState(0);
+  const c = claims[sel];
+  return (
+    <section id="ledger" className="lp-wrap lp-ledger" aria-labelledby="ledger-title">
+      <div className="head">
+        <h2 id="ledger-title" className="lp-h2 lp-in">Proof, not promises</h2>
+        <p className="lp-lead lp-in">
+          The real ledger of the sample run. Pick any claim to see the command behind it.
+        </p>
+      </div>
+      <div className="lp-ledger-card lp-in">
+        <ul>
+          {claims.map((cl, i) => (
+            <li key={cl.text}>
+              <button className={sel === i ? "on" : undefined} aria-pressed={sel === i} onClick={() => setSel(i)}>
+                <span className={`mark ${cl.ok ? "ok" : "miss"}`}>{cl.ok ? "✓" : "–"}</span>
+                <span className={cl.ok ? undefined : "struck"}>{cl.text}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="receipt" aria-live="polite">
+          <span className="lbl">Command</span>
+          <code>$ {c.cmd}</code>
+          <span className="lbl">Exit code</span>
+          <span className="big">0</span>
+          <span className={`verdict ${c.ok ? "ok" : "miss"}`}>{c.ok ? "Verified" : "Unverified: nothing found"}</span>
+          <p>
+            {c.ok
+              ? "The command ran on a clean clone and its output supports the claim."
+              : "The command ran and found nothing, so the claim stays unverified in the pack instead of being guessed."}
+          </p>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function slugOf(input: string): string | null {
@@ -106,15 +294,7 @@ function slugOf(input: string): string | null {
 type Intake =
   | { state: "idle" | "loading" }
   | { state: "error"; message: string }
-  | {
-      state: "ok";
-      name: string;
-      branch: string;
-      language: string;
-      license: string;
-      idleDays: number;
-      sizeKb: number;
-    };
+  | { state: "ok"; name: string; branch: string; language: string; license: string; idleDays: number; sizeKb: number };
 
 function IntakePreview() {
   const [value, setValue] = useState("jonschlinkert/is-number");
@@ -122,11 +302,7 @@ function IntakePreview() {
   // still loading, so no state is set synchronously inside the effect.
   const [answer, setAnswer] = useState<{ slug: string; intake: Intake } | null>(null);
   const slug = slugOf(value);
-  const intake: Intake = !slug
-    ? { state: "idle" }
-    : answer?.slug === slug
-      ? answer.intake
-      : { state: "loading" };
+  const intake: Intake = !slug ? { state: "idle" } : answer?.slug === slug ? answer.intake : { state: "loading" };
 
   useEffect(() => {
     if (!slug) return;
@@ -166,12 +342,24 @@ function IntakePreview() {
   }, [slug]);
 
   return (
-    <section id="try" className="lp-type" aria-labelledby="try-label">
-      <form action="/dashboard" method="get" onSubmit={(e) => !slug && e.preventDefault()}>
-        <label id="try-label" htmlFor="repo" className="lp-in">
-          Type any public GitHub repository.
-        </label>
-        <div className="lp-type-row" data-ui>
+    <section id="try" className="lp-wrap" aria-labelledby="try-title">
+      <div className="lp-try">
+        <div className="txt">
+          <h2 id="try-title" className="lp-h2 lp-in">Try it on a real repository</h2>
+          <p className="lp-in">
+            Type any public GitHub repository. The intake reads it live from the GitHub API, then
+            one click takes it over in the workspace.
+          </p>
+          <div className="lp-examples lp-in">
+            {examples.map((ex) => (
+              <button key={ex} type="button" onClick={() => setValue(ex)}>
+                {ex}
+              </button>
+            ))}
+          </div>
+        </div>
+        <form className="lp-intake lp-in" action="/dashboard" method="get" onSubmit={(e) => !slug && e.preventDefault()}>
+          <label htmlFor="repo">Repository</label>
           <input
             id="repo"
             name="repo"
@@ -181,116 +369,38 @@ function IntakePreview() {
             spellCheck={false}
             autoCapitalize="none"
           />
-        </div>
-        <div className="lp-answer lp-in" style={{ "--i": 1 } as React.CSSProperties} data-ui aria-live="polite">
-          {intake.state === "ok" ? (
-            <>
-              <dl>
-                <dt>Repository</dt>
-                <dd>{intake.name}</dd>
-                <dt>Branch</dt>
-                <dd>{intake.branch}</dd>
-                <dt>Language</dt>
-                <dd>{intake.language}</dd>
-                <dt>License</dt>
-                <dd>{intake.license}</dd>
-                <dt>Idle for</dt>
-                <dd>
-                  {intake.idleDays.toLocaleString()} {intake.idleDays === 1 ? "day" : "days"}
-                </dd>
-                <dt>Size</dt>
-                <dd>{intake.sizeKb.toLocaleString()} KB</dd>
-              </dl>
-              <button type="submit" className="lp-btn go">
-                Take over {intake.name}
-              </button>
-            </>
-          ) : (
-            <p className="state">
-              {intake.state === "loading"
-                ? "Reading the repository from the GitHub API…"
-                : intake.state === "error"
-                  ? intake.message
-                  : "Write it as owner/name, for example jonschlinkert/is-number."}
-            </p>
-          )}
-        </div>
-      </form>
-      <div className="lp-examples lp-in" style={{ "--i": 2 } as React.CSSProperties}>
-        <span>Or try</span>
-        {examples.map((ex) => (
-          <button key={ex} type="button" onClick={() => setValue(ex)}>
-            {ex}
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ClaimSentence() {
-  const [lit, setLit] = useState(0);
-  const paused = useRef(false);
-
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const id = setInterval(() => {
-      if (!paused.current) setLit((i) => (i + 1) % allClaims.length);
-    }, 2000);
-    return () => clearInterval(id);
-  }, []);
-
-  const current = allClaims[lit];
-  const pick = (i: number) => {
-    paused.current = true;
-    setLit(i);
-  };
-  // Inline spans (not <button>) so a comma never wraps away from its claim.
-  const claimProps = (i: number) => ({
-    role: "button",
-    tabIndex: 0,
-    "aria-pressed": lit === i,
-    onClick: () => pick(i),
-    onKeyDown: (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        pick(i);
-      }
-    },
-  });
-
-  return (
-    <section id="ledger" className="lp-proof" aria-label="The evidence ledger of the sample run">
-      <p className="lp-runon lp-in">
-        <span className="lead">On is-number, Heirloom proved that </span>
-        {claims.map((c, i) => (
-          <span key={c.text}>
-            <span {...claimProps(i)} className="lp-claim">
-              {c.text}
-            </span>
-            {i < claims.length - 2 ? ", " : i === claims.length - 2 ? " and " : ". "}
-          </span>
-        ))}
-        <span className="lead">It found no </span>
-        {misses.map((c, j) => {
-          const i = claims.length + j;
-          return (
-            <span key={c.text}>
-              <span {...claimProps(i)} className="lp-claim miss">
-                {c.text}
-              </span>
-              {j < misses.length - 2 ? ", " : j === misses.length - 2 ? " or " : ""}
-            </span>
-          );
-        })}
-        <span className="lead">, and says so.</span>
-      </p>
-      <div className="lp-receipt lp-in" style={{ "--i": 1 } as React.CSSProperties} data-ui aria-live="polite">
-        <span>Command</span>
-        <code>$ {current.cmd}</code>
-        <span className={`verdict ${current.ok ? "ok" : "miss"}`}>
-          exit 0 · {current.ok ? "verified" : "unverified"}
-        </span>
+          <div aria-live="polite">
+            {intake.state === "ok" ? (
+              <>
+                <dl>
+                  <dt>Branch</dt>
+                  <dd>{intake.branch}</dd>
+                  <dt>Language</dt>
+                  <dd>{intake.language}</dd>
+                  <dt>License</dt>
+                  <dd>{intake.license}</dd>
+                  <dt>Idle for</dt>
+                  <dd>
+                    {intake.idleDays.toLocaleString()} {intake.idleDays === 1 ? "day" : "days"}
+                  </dd>
+                  <dt>Size</dt>
+                  <dd>{intake.sizeKb.toLocaleString()} KB</dd>
+                </dl>
+                <button type="submit" className="lp-btn wide">
+                  Take over {intake.name} →
+                </button>
+              </>
+            ) : (
+              <p className="state">
+                {intake.state === "loading"
+                  ? "Reading the repository from the GitHub API…"
+                  : intake.state === "error"
+                    ? intake.message
+                    : "Write it as owner/name, for example jonschlinkert/is-number."}
+              </p>
+            )}
+          </div>
+        </form>
       </div>
     </section>
   );
@@ -298,190 +408,130 @@ function ClaimSentence() {
 
 export default function Landing() {
   useReveal();
-  const total = stages.reduce((s, x) => s + x.ms, 0);
-
-  const sentence = (
-    <>
-      <span className="lp-line">
-        <span>Every claim</span>
-      </span>
-      <span className="lp-line">
-        <span>
-          <span className="lp-slot">
-            <img src="/img/ledger-1870.jpg" alt="" width={1920} height={1440} />
-          </span>
-          on record.
-        </span>
-      </span>
-    </>
-  );
-
   return (
     <div className="lp">
       <header className="lp-nav">
-        <Link to="/" className="lp-word">
-          Heirloom
-        </Link>
-        <nav className="lp-nav-links" aria-label="Main">
-          <a href="#how">How it works</a>
-          <a href="#ledger">The ledger</a>
-          <a href="#try">Try a repo</a>
-          <Link to="/sample">Sample run</Link>
+        <div className="lp-nav-in">
+          <Link to="/" className="lp-word">
+            <span className="mark" aria-hidden="true" />
+            Heirloom
+          </Link>
+          <nav className="lp-nav-links" aria-label="Main">
+            <a href="#how">How it works</a>
+            <a href="#ledger">The ledger</a>
+            <a href="#try">Try a repo</a>
+            <Link to="/sample">Sample run</Link>
+          </nav>
           <Link to="/dashboard" className="lp-btn">
             Start a takeover
           </Link>
-        </nav>
+        </div>
       </header>
 
       <main>
         <section className="lp-hero" aria-labelledby="hero-title">
-          <h1 id="hero-title" className="lp-h1">
-            <span className="copy over">{sentence}</span>
-            <span className="copy under" aria-hidden="true">
-              {sentence}
-            </span>
-          </h1>
-          <p className="lp-hero-sub">
-            Heirloom takes over an inherited codebase, runs it in a sandbox, and
-            hands back a manual where every fact carries the command that proved
-            it.
-          </p>
-        </section>
-
-        <section id="how" className="lp-stages" aria-labelledby="how-title">
-          <h2 id="how-title" className="lp-h2 lp-in">
-            About one minute
-          </h2>
-          <ol className="lp-bar" data-ui aria-label={`Five stages of the sample run, ${(total / 1000).toFixed(1)} seconds in all`}>
-            {stages.map((s, i) => (
-              <li
-                key={s.name}
-                className="lp-seg"
-                style={{ flexGrow: s.ms, flexBasis: 0, background: stageFills[i], "--i": i } as React.CSSProperties}
-              >
-                {s.time}
-                <span className="clause" hidden>
-                  {s.clause}
-                </span>
-              </li>
-            ))}
-          </ol>
-          <div className="lp-clauses" aria-hidden="true">
-            {stages.map((s) => (
-              <p key={s.name} style={{ flexGrow: s.ms, flexBasis: 0 }}>
-                <span>{s.clause}</span>
-              </p>
-            ))}
+          <RepoDrawing />
+          <LiveChip />
+          <div className="lp-hero-txt">
+            <h1 id="hero-title">
+              Every claim, run
+              <br />
+              and verified.
+            </h1>
+            <p>
+              Proof-backed handovers for inherited codebases. Built on NVIDIA Nemotron and Nebius
+              Token Factory, for the engineer who inherits the repo nobody wants to touch.
+            </p>
+            <div className="lp-actions">
+              <Link to="/dashboard" className="lp-btn">
+                Start a takeover →
+              </Link>
+              <Link to="/sample" className="lp-btn ghost">
+                See a real run
+              </Link>
+            </div>
           </div>
-          <p className="lp-note lp-in">
-            Widths are the real stage timings of the{" "}
-            <Link to="/sample" className="lp-link" style={{ color: "#fff" }}>
-              sample run of jonschlinkert/is-number
-            </Link>
-            , planned by NVIDIA Nemotron 3 Ultra and run by Nemotron 3 Nano on Nebius Token Factory.
-          </p>
         </section>
 
-        <figure className="lp-photo" style={{ margin: 0 }}>
-          <img
-            src="/img/ledger-1870.jpg"
-            alt="An open account book from 1870, handwritten entries in ink with two of them struck through"
-            width={1920}
-            height={1440}
-            loading="lazy"
-          />
-          <figcaption>
-            Denis Nealon's account book, 1870. Inherited records have always
-            needed someone to check the entries. Deseronto Archives, no known
-            copyright restrictions.
-          </figcaption>
-        </figure>
+        <section className="lp-wrap lp-intro" aria-label="What Heirloom does">
+          <Statement />
+          <ul className="lp-stats">
+            <li className="lp-in">
+              <strong>61.6 s</strong>
+              <span>From repository intake to the finished risk register on the sample run.</span>
+            </li>
+            <li className="lp-in" style={{ "--i": 1 } as React.CSSProperties}>
+              <strong>$0.07</strong>
+              <span>Of Nemotron inference on Nebius Token Factory for the whole takeover.</span>
+            </li>
+            <li className="lp-in" style={{ "--i": 2 } as React.CSSProperties}>
+              <strong>0 claims</strong>
+              <span>Shipped without a command and an exit code behind them.</span>
+            </li>
+          </ul>
+        </section>
 
-        <ClaimSentence />
+        <section className="lp-wrap lp-screens" aria-label="Product screens">
+          <figure className="lp-in">
+            <div className="shot"><img src="/img/screen-workspace.jpg" alt="The takeover workspace with a live run and its agent feed" loading="lazy" /></div>
+            <figcaption><strong>Takeover workspace</strong>Start a run and watch every stage land in the agent feed as it happens.</figcaption>
+          </figure>
+          <figure className="lp-in" style={{ "--i": 1 } as React.CSSProperties}>
+            <div className="shot"><img src="/img/screen-ledger.jpg" alt="The evidence ledger listing claims with commands and exit codes" loading="lazy" /></div>
+            <figcaption><strong>Evidence ledger</strong>Each claim with its command, output and exit code, verified or not.</figcaption>
+          </figure>
+          <figure className="lp-in" style={{ "--i": 2 } as React.CSSProperties}>
+            <div className="shot"><img src="/img/screen-pack.jpg" alt="The handover pack runbook with proof under every step" loading="lazy" /></div>
+            <figcaption><strong>Handover pack</strong>Runbook, map and risks, with the proof printed under every step.</figcaption>
+          </figure>
+          <p className="lp-small">Actual software screens from a live run.</p>
+        </section>
 
+        <HowItWorks />
+        <Ledger />
         <IntakePreview />
 
-        <section className="lp-stats" aria-labelledby="stats-title">
-          <h2 id="stats-title" className="lp-stats-head lp-in">
-            <span className="soft">Measured on</span>
-            one real run
-          </h2>
-          <ul className="lp-figs">
-            {figures.map((f, i) => (
-              <li key={f.cap} className="lp-fig lp-in" style={{ "--i": i } as React.CSSProperties}>
-                <span className="num">
-                  <span className="whole">{f.whole}</span>
-                  <span className="dec">{f.dec}</span>
-                </span>
-                <span className="cap">{f.cap}</span>
+        <section className="lp-wrap" aria-labelledby="pack-title">
+          <h2 id="pack-title" className="lp-h2 lp-in">One pack for the next engineer</h2>
+          <ul className="lp-cards">
+            {deliverables.map((d, i) => (
+              <li key={d.title} className="lp-in" style={{ "--i": i } as React.CSSProperties}>
+                <span className="dot" />
+                <h3>{d.title}</h3>
+                <p>{d.body}</p>
               </li>
             ))}
           </ul>
         </section>
 
-        {deliverables.map((d, i) => (
-          <section
-            key={d.phrase}
-            className={`lp-field${i % 2 ? " mirror" : ""}`}
-            style={{ background: d.bg, color: d.ink }}
-            aria-label={d.phrase}
-          >
-            <p className="lp-in">{d.body}</p>
-            <h3 className="lp-in" style={{ "--i": 1 } as React.CSSProperties}>
-              {d.phrase}
-            </h3>
-          </section>
-        ))}
-
-        <section className="lp-cta" aria-labelledby="cta-title">
-          <h2 id="cta-title" className="lp-in">
-            Hand it over.
-            <br />
-            Keep the receipts.
-          </h2>
-          <div className="lp-cta-row">
-            <p className="lp-in">
-              Sign in as a guest and point Heirloom at the repository nobody
-              wants to touch. The pack is ready in about a minute.
-            </p>
-            <Link to="/dashboard" className="lp-btn lp-in" style={{ "--i": 1 } as React.CSSProperties}>
-              Start a takeover
+        <section className="lp-wrap" aria-labelledby="cta-title">
+          <div className="lp-cta">
+            <div>
+              <h2 id="cta-title" className="lp-in">Hand it over. Keep the receipts.</h2>
+              <p className="lp-in">Sign in as a guest and point Heirloom at a repository. The pack is ready in about a minute.</p>
+            </div>
+            <Link to="/dashboard" className="lp-btn lp-in">
+              Start a takeover →
             </Link>
           </div>
         </section>
       </main>
 
-      <footer className="lp-foot">
-        <div className="lp-foot-top">
-          <div className="notes">
-            <p>
-              <strong>Heirloom Handover Agent.</strong> Proof-backed handover
-              for inherited codebases.
-            </p>
-            <p>
-              Runs on Nebius Token Factory. NVIDIA Nemotron 3 Ultra plans,
-              Nemotron 3 Nano executes. Tavily researches dependencies.
-            </p>
-            <p>Built for the Nebius × NVIDIA Global AI Hackathon, Coding and Agentic Engineering track.</p>
-          </div>
-          <a href="#hero-title" className="lp-link">
-            Back to top
-          </a>
+      <footer className="lp-wrap lp-foot">
+        <div>
+          <Link to="/" className="lp-word">
+            <span className="mark" aria-hidden="true" />
+            Heirloom
+          </Link>
+          <p>Proof-backed handovers for inherited codebases. Built for the Nebius × NVIDIA Global AI Hackathon.</p>
         </div>
-        <a className="lp-foot-big" href="https://github.com/Mateen12a/heirloom-handover-agent">
-          github.com/Mateen12a/
-          <br />
-          heirloom-handover-agent
-        </a>
-        <div className="lp-foot-meta">
-          <span>
-            <Link to="/sample">Sample run</Link>
-            <Link to="/catalog">Playbooks</Link>
-            <Link to="/dashboard">Workspace</Link>
-          </span>
-          <span>Ledger photograph: Deseronto Archives, via Wikimedia Commons</span>
-          <span>MIT licence · 2026</span>
-        </div>
+        <nav aria-label="Footer">
+          <Link to="/sample">Sample run</Link>
+          <Link to="/catalog">Playbooks</Link>
+          <Link to="/dashboard">Workspace</Link>
+          <a href="https://github.com/Mateen12a/heirloom-handover-agent">GitHub</a>
+        </nav>
+        <p className="meta">Nemotron 3 Ultra plans · Nemotron 3 Nano executes · Tavily researches dependencies · MIT licence 2026</p>
       </footer>
     </div>
   );

@@ -47,8 +47,8 @@
    Verdict colours (verified / unverified / contradicted) are product
    semantics and stay. */
 :root {
-  --radius: 0.25rem;
-  --background: #ffffff;
+  --radius: 0.875rem;
+  --background: #f3f4f1;
   --foreground: #1f2b4d;
   --card: #ffffff;
   --card-foreground: #1f2b4d;
@@ -58,7 +58,7 @@
   --primary-foreground: #ffffff;
   --secondary: #eceae5;
   --secondary-foreground: #1f2b4d;
-  --muted: #f4f4f2;
+  --muted: #eceee9;
   --muted-foreground: #5a6178;
   --accent: #eceae5;
   --accent-foreground: #1f2b4d;
@@ -91,7 +91,8 @@
   --field-1-ink: #ffffff;
   --field-2: #e3e1dc;
   --field-2-ink: #1f2b4d;
-  --font-text: "Erode", "Iowan Old Style", Georgia, serif;
+  --font-text: "Inter", system-ui, sans-serif;
+  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
   --font-code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --step-small: clamp(0.8125rem, 0.79rem + 0.1vw, 0.875rem);
   --step-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
@@ -112,7 +113,7 @@
   --heirloom-red: #b3261e;
   --heirloom-red-soft: #f9e3e1;
   --heirloom-ink: #1f2b4d;
-  --heirloom-canvas: #f4f4f2;
+  --heirloom-canvas: #f3f4f1;
 }
 
 @layer base {
@@ -125,12 +126,13 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-text);
-    font-size: 17px;
+    font-size: 15px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
   h1, h2, h3, h4 {
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    letter-spacing: -0.03em;
   }
   code, pre, kbd {
     font-family: var(--font-code);
@@ -163,7 +165,7 @@
     transition: background-color 0.2s var(--ease-out);
   }
   .hl-card-hover:hover {
-    background: #fbfaf7;
+    background: #fafbf8;
   }
   /* Figures and identifiers: the text face with tabular numerals. Literal
      commands use <code>, which keeps monospace. */

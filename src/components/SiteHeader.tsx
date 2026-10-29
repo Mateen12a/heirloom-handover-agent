@@ -21,10 +21,10 @@ import { useNavigate, Link } from "react-router";
 import { useState } from "react";
 
 const NAV_LINKS = [
-  { label: "How it works", href: "/#how-it-works" },
-  { label: "Proof, not promises", href: "/#proof" },
+  { label: "How it works", href: "/#how" },
+  { label: "Try a repo", href: "/#try" },
+  { label: "Sample run", href: "/sample" },
   { label: "Playbooks", href: "/catalog" },
-  { label: "Built with", href: "/#built-with" },
 ];
 
 export function SiteHeader() {
@@ -38,8 +38,8 @@ export function SiteHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-background/80">
-      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
+    <header className="sticky top-3 z-40 px-3 sm:px-4">
+      <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between rounded-full bg-white pl-5 pr-2 shadow-[0_1px_2px_rgba(16,24,40,0.06)] ring-1 ring-black/5">
         <div className="flex items-center gap-1">
           <Link to="/" className="transition-opacity hover:opacity-80">
             <HeirloomLogo />
@@ -51,7 +51,7 @@ export function SiteHeader() {
               <a
                 key={l.href}
                 href={l.href}
-                className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="rounded-full px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 {l.label}
               </a>
@@ -59,7 +59,7 @@ export function SiteHeader() {
               <Link
                 key={l.href}
                 to={l.href}
-                className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="rounded-full px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 {l.label}
               </Link>
