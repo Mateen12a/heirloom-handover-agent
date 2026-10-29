@@ -469,7 +469,12 @@ function NewRunDialog({
     try {
       const runId = await create({
         name: name.trim() || "Untitled takeover",
-        repoUrl: repoUrl.trim() || "github.com/inherited/unknown",
+        // The sandbox runner only accepts the https form, so add the scheme
+        // when the user types the bare github.com/owner/repo shown in the hint.
+        repoUrl: (repoUrl.trim() || "github.com/inherited/unknown").replace(
+          /^(?:https?:\/\/)?(?:www\.)?github\.com\//i,
+          "https://github.com/",
+        ),
         shape: liveMode ? "" : shape,
       });
       toast.success("Takeover queued. The loop is starting.");
