@@ -13,9 +13,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates python3 python3-pip python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-# Node.js and Python toolchains the resolved strategies may call. pytest is
+# Node.js and Python toolchains the resolved strategies may call. Yarn ships
+# with the node image, so installing it again fails with EEXIST. pytest is
 # preinstalled so a Python repo can run its suite without a requirements file.
-RUN npm install -g pnpm@9 yarn@1.22.22 bun@1.1.38 \
+RUN npm install -g pnpm@9 bun@1.1.38 \
     && python3 -m pip install --no-cache-dir --break-system-packages pytest \
     && npm cache clean --force
 
