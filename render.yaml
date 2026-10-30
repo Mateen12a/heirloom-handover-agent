@@ -6,9 +6,10 @@ services:
   - type: web
     name: heirloom-runner
     runtime: docker
-    rootDir: runner
-    dockerfilePath: ./Dockerfile
     plan: free
+    region: oregon
+    dockerfilePath: ./runner/Dockerfile
+    dockerContext: ./runner
     healthCheckPath: /health
     autoDeploy: true
     envVars:
