@@ -1366,7 +1366,12 @@ Convention matches are the files a runner would pick up.`
 
     let analysisText = "Analysis unavailable.";
     if (analysisRes.ok) {
-      analysisText = analysisRes.text;
+      // The model sometimes restates its whole paragraph; keep each sentence once.
+      const seen = new Set<string>();
+      analysisText = (analysisRes.text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [analysisRes.text])
+        .map((s) => s.trim())
+        .filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()))
+        .join(" ");
       if (analysisRes.truncated) {
         analysisText += " (The model hit its token limit and the summary ends here.)";
       }
