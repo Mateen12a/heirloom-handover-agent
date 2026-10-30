@@ -1153,7 +1153,7 @@ Convention matches are the files a runner would pick up.`
                 {
                   role: "system",
                   content:
-                    'You diagnose a failing test run inside a sandboxed clone of a repository. Reply with strict JSON only, no fences: {"diagnosis": "max 30 words", "fixCommand": "one single-line command to run in the clone before the tests are retried"}. The command must start with npm, pnpm, yarn, bun, npx or python3, must be a single line, and must not contain ; | & ` $ > < or absolute paths. Prefer commands that repair the environment: install a missing dev dependency, set or fix a package.json script, pin a toolchain flag. If no single safe command can repair the failure, reply {"diagnosis": "max 30 words", "giveUp": true, "wall": "the precise reason the suite cannot be made to pass in this sandbox"}.',
+                    'You diagnose a failing test run inside a sandboxed clone of a repository. Reply with strict JSON only, no fences: {"diagnosis": "<your diagnosis, max 30 words>", "fixCommand": "<one single-line command to run in the clone before the tests are retried>"}. Replace every <...> with your own words. The command must start with npm, pnpm, yarn, bun, npx, python3, go or cargo, must be a single line, and must not contain ; | & ` $ > < or absolute paths. Prefer commands that repair the environment: install a missing dev dependency, set or fix a package.json script, pin a toolchain flag. If no single safe command can repair the failure, reply {"diagnosis": "<your diagnosis, max 30 words>", "giveUp": true, "wall": "<the specific error that blocks the suite, quoted from the output>"}.',
                 },
                 {
                   role: "user",
@@ -1183,6 +1183,15 @@ Convention matches are the files a runner would pick up.`
               argv = parsed.argv;
               giveUp = parsed.giveUp;
               rejected = parsed.rejected;
+              // A model that echoes the prompt's placeholders has not named a
+              // cause; fall back to the last error line of the real output.
+              const echoed = (t: string | null) =>
+                !t || /^<.*>$/.test(t.trim()) || /max 30 words|the precise reason|your own words/i.test(t);
+              const lastError =
+                stdout.split(/\r?\n/).reverse().find((l) => /error|failed|cannot|not found/i.test(l))?.trim() ??
+                "see the test output in the evidence ledger";
+              if (echoed(diagnosis)) diagnosis = `The suite failed: ${lastError.slice(0, 200)}`;
+              if (giveUp !== null && echoed(giveUp)) giveUp = lastError.slice(0, 240);
             } else {
               diagnosis = `Diagnosis call failed: ${diag.error}`;
             }

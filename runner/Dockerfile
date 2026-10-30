@@ -10,7 +10,7 @@
 # Go and Rust toolchains are copied from their official images so a Go or
 # Rust repository runs its own test suite instead of stopping at static checks.
 FROM golang:1.23-bookworm AS go
-FROM rust:1.82-slim-bookworm AS rust
+FROM rust:1-slim AS rust
 
 FROM node:22-slim
 
