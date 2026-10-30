@@ -28,6 +28,8 @@ export type StrategyInput = {
   testFiles: number;
   workspaceManifests: number;
   manifestText?: string;
+  /** Files at the repository root, so a strategy can see every manifest. */
+  rootFiles?: string[];
 };
 
 export type RunStrategy = {
@@ -229,25 +231,57 @@ function resolveNode(input: StrategyInput): RunStrategy | null {
 
 function resolvePython(input: StrategyInput): RunStrategy | null {
   const text = input.manifestText ?? "";
+  const root = new Set(input.rootFiles ?? []);
   const hasPytestHint = /pytest/.test(text) || input.testFiles > 0;
   if (!hasPytestHint) return null;
 
-  const install: string[] = [];
-  if (input.lockfile === "requirements.txt" || /requirements\.txt$/m.test(text)) {
-    install.push("python3", "-m", "pip", "install", "-r", "requirements.txt");
-  } else if (/\[tool\.poetry\]/.test(text)) {
-    // The runner image does not ship poetry; pytest is preinstalled, so the
-    // suite still runs even though the editable install is skipped.
-    install.length = 0;
+  // A packaged project (pyproject.toml / setup.py) must be installed itself,
+  // or its tests fail on `import yourpackage`; pip reads its dependencies from
+  // the same file. Otherwise a requirements file is the dependency list.
+  const packaged = root.has("pyproject.toml") || root.has("setup.py");
+  const hasRequirements = root.has("requirements.txt") || input.lockfile === "requirements.txt";
+  let install: string[];
+  let source: string;
+  if (packaged) {
+    install = ["python3", "-m", "pip", "install", "-e", "."];
+    source = root.has("pyproject.toml") ? "pyproject.toml" : "setup.py";
+  } else if (hasRequirements) {
+    install = ["python3", "-m", "pip", "install", "-r", "requirements.txt"];
+    source = "requirements.txt";
+  } else {
+    install = ["python3", "-m", "pip", "install", "--upgrade", "pytest"];
+    source = "Python project layout";
   }
   const tests = ["python3", "-m", "pytest", "-q"];
-  const label = [install.length ? install.join(" ") : null, tests.join(" ")]
-    .filter(Boolean)
-    .join(" → ");
   return {
-    label,
-    source: input.lockfile === "requirements.txt" ? "requirements.txt" : "Python project layout",
-    install: install.length ? install : ["python3", "-m", "pip", "install", "--upgrade", "pytest"],
+    label: `${install.join(" ")} → ${tests.join(" ")}`,
+    source,
+    install,
+    tests: [{ cwd: ".", argv: tests }],
+  };
+}
+
+function resolveGo(input: StrategyInput): RunStrategy | null {
+  if (input.testFiles === 0) return null;
+  const install = ["go", "mod", "download"];
+  const tests = ["go", "test", "./..."];
+  return {
+    label: `${install.join(" ")} → ${tests.join(" ")}`,
+    source: "go.mod",
+    install,
+    tests: [{ cwd: ".", argv: tests }],
+  };
+}
+
+function resolveRust(): RunStrategy {
+  // Rust unit tests live inline (#[cfg(test)]), so there is no file census to
+  // gate on; `cargo test` compiles the crate and reports its own test count.
+  const install = ["cargo", "fetch"];
+  const tests = ["cargo", "test"];
+  return {
+    label: `${install.join(" ")} → ${tests.join(" ")}`,
+    source: "Cargo.toml",
+    install,
     tests: [{ cwd: ".", argv: tests }],
   };
 }
@@ -258,7 +292,11 @@ export function resolveStrategy(input: StrategyInput): RunStrategy | null {
       ? resolveNode(input)
       : input.ecosystem === "Python"
         ? resolvePython(input)
-        : null;
+        : input.ecosystem === "Go"
+          ? resolveGo(input)
+          : input.ecosystem === "Rust"
+            ? resolveRust()
+            : null;
   if (!strategy) return null;
   // Defense in depth: the runner re-validates, but a strategy we would not be
   // allowed to execute must never leave the pipeline.

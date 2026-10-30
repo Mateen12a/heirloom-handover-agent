@@ -37,11 +37,11 @@ import { pathToFileURL } from "node:url";
 
 const PORT = Number(process.env.PORT || 8790);
 const TOKEN = process.env.RUNNER_TOKEN || "";
-const CLONE_TIMEOUT_MS = Number(process.env.CLONE_TIMEOUT || 60_000);
-const INSTALL_TIMEOUT_MS = Number(process.env.INSTALL_TIMEOUT || 240_000);
+const CLONE_TIMEOUT_MS = Number(process.env.CLONE_TIMEOUT || 90_000);
+const INSTALL_TIMEOUT_MS = Number(process.env.INSTALL_TIMEOUT || 300_000);
 const BUILD_TIMEOUT_MS = Number(process.env.BUILD_TIMEOUT || 180_000);
 const FIX_TIMEOUT_MS = Number(process.env.FIX_TIMEOUT || 90_000);
-const TEST_TIMEOUT_MS = Number(process.env.TEST_TIMEOUT || 180_000);
+const TEST_TIMEOUT_MS = Number(process.env.TEST_TIMEOUT || 240_000);
 const PROBE_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT || 30_000);
 const HARD_DEADLINE_MS = Number(process.env.HARD_DEADLINE || 480_000);
 const SESSION_IDLE_MS = Number(process.env.SESSION_IDLE || 240_000);
@@ -54,17 +54,24 @@ const REPO_URL_RE =
 
 // ── command allowlist ──────────────────────────────────────────────────────
 // Model-authored corrective commands are argv arrays, never shell lines. Only
-// package managers, the Node runtime (version check), Python (pip/pytest) and
+// package managers, the Node runtime (version check), Python (pip/pytest), the
+// Go and Cargo toolchains (fetch/build/test subcommands only) and
 // a handful of known test runners via npx are executable, and every argument
 // is screened for shell metacharacters, absolute paths and traversal.
-const EXECUTABLES = new Set(["npm", "pnpm", "yarn", "bun", "npx", "python3", "node"]);
-const BANNED_FLAGS = ["--registry", "-g", "--global", "--prefix", "--userconfig", "--location"];
+const EXECUTABLES = new Set(["npm", "pnpm", "yarn", "bun", "npx", "python3", "node", "go", "cargo"]);
+// -exec/-toolexec (go) and --config (cargo) would let a command run any binary.
+const BANNED_FLAGS = [
+  "--registry", "-g", "--global", "--prefix", "--userconfig", "--location",
+  "-exec", "-toolexec", "--config",
+];
 const BANNED_TOKENS = new Set([
   "publish", "unpublish", "login", "logout", "adduser", "token", "owner", "team",
   "access", "deprecate", "dist-tag", "hook", "exec", "dlx", "link", "create",
   "init", "eval", "sudo", "curl", "wget", "chmod", "chown", "nc", "dd", "mkfs",
 ]);
 const NPX_RUNNERS = new Set(["mocha", "jest", "vitest", "ava", "tape", "jasmine"]);
+const GO_SUBCOMMANDS = new Set(["version", "mod", "build", "test", "vet"]);
+const CARGO_SUBCOMMANDS = new Set(["--version", "fetch", "build", "test", "check"]);
 const META_RE = /[;|&$><`\n\r\\]/;
 const QUOTE_RE = /['"]/;
 
@@ -85,7 +92,8 @@ function validateArgv(argv) {
     // Quotes survive tokenization as literal characters and would be
     // reinterpreted by cmd.exe when the runner is used on Windows.
     if (QUOTE_RE.test(raw)) return fail(`quote character in: ${raw}`);
-    if (raw.includes("..")) return fail(`path traversal in: ${raw}`);
+    // `./...` is Go's "every package below here" pattern, not a traversal.
+    if (raw.includes("..") && raw !== "./...") return fail(`path traversal in: ${raw}`);
     if (raw.startsWith("/") || /^[A-Za-z]:[\\/]/.test(raw)) return fail(`absolute path in: ${raw}`);
   }
   if (chars > 400) return fail("command too long (max 400 chars)");
@@ -100,6 +108,15 @@ function validateArgv(argv) {
     if (argv[2] === "pip" && !["install", "uninstall"].includes(module)) {
       return fail("python3 -m pip is limited to install/uninstall");
     }
+  }
+  if (exe === "go") {
+    if (!GO_SUBCOMMANDS.has(argv[1] ?? "")) {
+      return fail(`go is limited to: ${[...GO_SUBCOMMANDS].join(", ")}`);
+    }
+    if (argv[1] === "mod" && argv[2] !== "download") return fail("go mod is limited to download");
+  }
+  if (exe === "cargo" && !CARGO_SUBCOMMANDS.has(argv[1] ?? "")) {
+    return fail(`cargo is limited to: ${[...CARGO_SUBCOMMANDS].join(", ")}`);
   }
   if (exe === "npx") {
     const bin = argv.slice(1).find((a) => !a.startsWith("-"));

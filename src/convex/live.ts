@@ -234,6 +234,8 @@ export const runLive = internalAction({
     const TEST_JS_RE =
       /\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(__tests__|tests?|specs?)\/[^/]+\.[cm]?[jt]sx?$|(^|\/)(test|tests|spec|specs)\.[cm]?[jt]sx?$/;
     const TEST_PY_RE = /(^|\/)(test_[^/]*\.py|[^/]*_test\.py)$|(^|\/)(test|tests)\/[^/]+\.py$/;
+    const TEST_GO_RE = /_test\.go$/;
+    const TEST_RS_RE = /(^|\/)tests\/[^/]+\.rs$/;
 
     // Inherited repos are not always npm projects, so the census counts the
     // ecosystems we can actually inspect and execute. The test counts are
@@ -241,7 +243,7 @@ export const runLive = internalAction({
     // disagree.
     const jsTestFiles = count(TEST_JS_RE);
     const pyTestFiles = count(TEST_PY_RE);
-    const testFiles = jsTestFiles + pyTestFiles;
+    const testFiles = jsTestFiles + pyTestFiles + count(TEST_GO_RE) + count(TEST_RS_RE);
     const censusNote = [
       `${files.length} files`,
       `${count(/\.jsx?$/)} JS/JSX`,
@@ -550,6 +552,7 @@ export const runLive = internalAction({
         testFiles,
         workspaceManifests: nestedManifests,
         manifestText,
+        rootFiles: [...rootFiles],
       });
     }
 

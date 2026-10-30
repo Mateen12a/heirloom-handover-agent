@@ -8,14 +8,20 @@
 
 const META_RE = /[;|&$><`\n\r\\]/;
 const QUOTE_RE = /['"]/;
-const EXECUTABLES = new Set(["npm", "pnpm", "yarn", "bun", "npx", "python3", "node"]);
-const BANNED_FLAGS = ["--registry", "-g", "--global", "--prefix", "--userconfig", "--location"];
+const EXECUTABLES = new Set(["npm", "pnpm", "yarn", "bun", "npx", "python3", "node", "go", "cargo"]);
+// -exec/-toolexec (go) and --config (cargo) would let a command run any binary.
+const BANNED_FLAGS = [
+  "--registry", "-g", "--global", "--prefix", "--userconfig", "--location",
+  "-exec", "-toolexec", "--config",
+];
 const BANNED_TOKENS = new Set([
   "publish", "unpublish", "login", "logout", "adduser", "token", "owner", "team",
   "access", "deprecate", "dist-tag", "hook", "exec", "dlx", "link", "create",
   "init", "eval", "sudo", "curl", "wget", "chmod", "chown", "nc", "dd", "mkfs",
 ]);
 const NPX_RUNNERS = new Set(["mocha", "jest", "vitest", "ava", "tape", "jasmine"]);
+const GO_SUBCOMMANDS = new Set(["version", "mod", "build", "test", "vet"]);
+const CARGO_SUBCOMMANDS = new Set(["--version", "fetch", "build", "test", "check"]);
 
 export type CommandCheck = { ok: true; argv: string[] } | { ok: false; reason: string };
 
@@ -34,7 +40,10 @@ export function validateCommandArgv(argv: unknown): CommandCheck {
     chars += raw.length + 1;
     if (META_RE.test(raw)) return { ok: false, reason: `shell metacharacter in: ${raw}` };
     if (QUOTE_RE.test(raw)) return { ok: false, reason: `quote character in: ${raw}` };
-    if (raw.includes("..")) return { ok: false, reason: `path traversal in: ${raw}` };
+    // `./...` is Go's "every package below here" pattern, not a traversal.
+    if (raw.includes("..") && raw !== "./...") {
+      return { ok: false, reason: `path traversal in: ${raw}` };
+    }
     if (raw.startsWith("/") || /^[A-Za-z]:[\\/]/.test(raw)) {
       return { ok: false, reason: `absolute path in: ${raw}` };
     }
@@ -50,6 +59,17 @@ export function validateCommandArgv(argv: unknown): CommandCheck {
     if (argv[2] === "pip" && !["install", "uninstall"].includes(String(argv[3] ?? ""))) {
       return { ok: false, reason: "python3 -m pip is limited to install/uninstall" };
     }
+  }
+  if (exe === "go") {
+    if (!GO_SUBCOMMANDS.has(String(argv[1] ?? ""))) {
+      return { ok: false, reason: `go is limited to: ${[...GO_SUBCOMMANDS].join(", ")}` };
+    }
+    if (argv[1] === "mod" && argv[2] !== "download") {
+      return { ok: false, reason: "go mod is limited to download" };
+    }
+  }
+  if (exe === "cargo" && !CARGO_SUBCOMMANDS.has(String(argv[1] ?? ""))) {
+    return { ok: false, reason: `cargo is limited to: ${[...CARGO_SUBCOMMANDS].join(", ")}` };
   }
   if (exe === "npx") {
     const bin = argv.slice(1).find((a) => !String(a).startsWith("-"));

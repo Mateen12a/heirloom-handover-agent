@@ -98,6 +98,10 @@ The sample page and the playable scenario runs work without any keys; adding
 ## Sandbox runner
 
 Execution happens in a separate capped container, not in the Convex runtime.
+It runs the repository's own suite for **Node.js** (npm, pnpm, yarn, bun, including
+workspaces and CI-defined commands), **Python** (installs packaged projects with
+`pip install -e .` or a requirements file, then pytest), **Go** (`go test ./...`)
+and **Rust** (`cargo test`); other ecosystems get static verification only.
 Build and run it with `runner/README.md`, or deploy it to Render from
 [render.yaml](render.yaml) (a Convex cron pings `/health` every 10 minutes so
 a free instance stays warm); setting `RUNNER_URL` and

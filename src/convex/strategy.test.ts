@@ -155,14 +155,44 @@ describe("resolveStrategy (Python)", () => {
     expect(s?.tests[0].argv).toEqual(["python3", "-m", "pytest", "-q"]);
   });
 
+  it("installs a packaged project itself so its tests can import it", () => {
+    const s = resolveStrategy({
+      ecosystem: "Python",
+      manifestText: "[project]\nname = \"demo\"\n[tool.pytest.ini_options]",
+      testFiles: 2,
+      workspaceManifests: 0,
+      rootFiles: ["pyproject.toml", "requirements.txt"],
+    });
+    expect(s?.install).toEqual(["python3", "-m", "pip", "install", "-e", "."]);
+    expect(s?.source).toBe("pyproject.toml");
+  });
+
   it("returns null for ecosystems the sandbox does not execute", () => {
     expect(
       resolveStrategy({
-        ecosystem: "Rust",
-        lockfile: "Cargo.lock",
+        ecosystem: "Java",
+        lockfile: "pom.xml",
         testFiles: 5,
         workspaceManifests: 0,
       }),
     ).toBeNull();
+  });
+});
+
+describe("resolveStrategy (Go and Rust)", () => {
+  it("downloads modules and tests every Go package", () => {
+    const s = resolveStrategy({ ecosystem: "Go", testFiles: 4, workspaceManifests: 0 });
+    expect(s?.install).toEqual(["go", "mod", "download"]);
+    expect(s?.tests[0].argv).toEqual(["go", "test", "./..."]);
+  });
+
+  it("does not claim a Go test run when there are no _test.go files", () => {
+    expect(resolveStrategy({ ecosystem: "Go", testFiles: 0, workspaceManifests: 0 })).toBeNull();
+  });
+
+  it("fetches crates and runs cargo test", () => {
+    const s = resolveStrategy({ ecosystem: "Rust", lockfile: "Cargo.lock", testFiles: 0, workspaceManifests: 0 });
+    expect(s?.install).toEqual(["cargo", "fetch"]);
+    expect(s?.tests[0].argv).toEqual(["cargo", "test"]);
   });
 });

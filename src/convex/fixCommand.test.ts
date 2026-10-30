@@ -23,6 +23,13 @@ describe("validateCommandArgv", () => {
     ["python3", "-m", "pip", "install", "-r", "requirements.txt"],
     ["python3", "-m", "pytest", "-q"],
     ["node", "--version"],
+    ["python3", "-m", "pip", "install", "-e", "."],
+    ["go", "mod", "download"],
+    ["go", "test", "./..."],
+    ["go", "vet", "./..."],
+    ["cargo", "fetch"],
+    ["cargo", "test"],
+    ["cargo", "--version"],
   ];
 
   const rejected: string[][] = [
@@ -41,6 +48,16 @@ describe("validateCommandArgv", () => {
     ["npm", "install", "../../etc"],
     ["npm", "install", "/etc/passwd"],
     ["git", "push"],
+    ["go", "run", "main.go"],
+    ["go", "generate", "./..."],
+    ["go", "install", "example.com/tool@latest"],
+    ["go", "mod", "edit", "-replace=x=y"],
+    ["go", "test", "-exec=sh", "./..."],
+    ["go", "test", "-toolexec", "evil", "./..."],
+    ["go", "test", "../other/..."],
+    ["cargo", "install", "ripgrep"],
+    ["cargo", "run"],
+    ["cargo", "test", "--config", "build.rustc=evil"],
   ];
 
   for (const argv of allowed) {
