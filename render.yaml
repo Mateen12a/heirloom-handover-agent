@@ -1,0 +1,16 @@
+# One-click hosting for the sandbox runner on Render (Blueprint).
+# Render builds runner/Dockerfile and serves it on a fixed https URL with no
+# 100-second proxy cap. Set RUNNER_TOKEN to the same value as in Convex, then
+# point Convex RUNNER_URL at the service URL.
+services:
+  - type: web
+    name: heirloom-runner
+    runtime: docker
+    rootDir: runner
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: RUNNER_TOKEN
+        sync: false

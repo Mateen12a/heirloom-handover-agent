@@ -127,3 +127,17 @@ export const execute = internalAction({
     }
   },
 });
+
+export const ping = internalAction({
+  args: {},
+  handler: async () => {
+    const base = process.env.RUNNER_URL;
+    if (!base) return { ok: false };
+    try {
+      const res = await fetch(`${base.replace(/\/$/, "")}/health`, { signal: AbortSignal.timeout(60_000) });
+      return { ok: res.ok };
+    } catch {
+      return { ok: false };
+    }
+  },
+});
