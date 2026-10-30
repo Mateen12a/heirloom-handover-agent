@@ -9,6 +9,10 @@ them in a capped sandbox, repairs what it can, and ships a handover pack where
 each fact carries the command and exit code that produced it. When something
 cannot be verified, it says so instead of guessing.
 
+- **Live app:** https://heirloom-handover.netlify.app (continue as a guest, or open the [public sample run](https://heirloom-handover.netlify.app/sample) without signing in)
+- **Nebius + NVIDIA:** every model call goes to **Nebius Token Factory**. **NVIDIA Nemotron 3 Ultra** (`nvidia/Nemotron-3-Ultra-550b-a55b`) plans the takeover, diagnoses failing tests and writes the risk analysis; **NVIDIA Nemotron 3 Nano** (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`) runs the fast loop steps. Model output that becomes a command is tokenized and allowlisted before it runs.
+- **Hosting:** frontend on Netlify, backend on Convex, sandbox runner as a Docker service on Render ([render.yaml](render.yaml)).
+
 ## What a run produces
 
 A seven-phase pipeline writes every phase to a live workspace feed and an
@@ -94,7 +98,9 @@ The sample page and the playable scenario runs work without any keys; adding
 ## Sandbox runner
 
 Execution happens in a separate capped container, not in the Convex runtime.
-Build and run it with `runner/README.md`; setting `RUNNER_URL` and
+Build and run it with `runner/README.md`, or deploy it to Render from
+[render.yaml](render.yaml) (a Convex cron pings `/health` every 10 minutes so
+a free instance stays warm); setting `RUNNER_URL` and
 `RUNNER_TOKEN` on the deployment attaches it. The runner clones public repos
 only, refuses to start as root, executes argv-allowlisted commands (no shell),
 enforces hard per-phase timeouts, and keeps one working tree per repair
